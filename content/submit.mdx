@@ -1,0 +1,80 @@
+---
+title: "Submit your app"
+description: "Connect your repository, prepare its marketplace listing, and submit the app for review."
+---
+
+Submit the app after its public container images and `zenith-compose.yml` are available from the repository's default branch.
+
+## Check the repository
+
+<Check>
+Before you open the dashboard, confirm all of the following:
+
+- The GitHub repository is public.
+- You own or administer the repository.
+- `zenith-compose.yml` is at the repository root on the default branch.
+- Every Compose service has a public `image`.
+- `docker compose -f zenith-compose.yml config` succeeds.
+</Check>
+
+## Send the app for review
+
+<Visibility for="humans">
+
+<Warning>
+Only the repository owner or an authorized administrator should connect GitHub, accept the publishing agreement, and submit the app.
+</Warning>
+
+<Steps>
+  <Step title="Open the publishing dashboard">
+    Open the [Zenith publishing dashboard](https://app.zenith.hosting/publish) and sign in.
+  </Step>
+  <Step title="Connect GitHub">
+    Connect the GitHub account that owns or administers the repository.
+  </Step>
+  <Step title="Choose the repository">
+    Select the public repository. Zenith checks `zenith-compose.yml` from the latest commit on its default branch.
+  </Step>
+  <Step title="Build the marketplace listing">
+    Add the app description, website, support link, license, artwork, and screenshots. Preview the listing before you continue.
+  </Step>
+  <Step title="Review and submit">
+    Confirm that you have permission to publish the app. Review the repository and listing, then submit them to Zenith.
+  </Step>
+</Steps>
+
+## Review process
+
+After submission, your app will undergo review by Zenith staff.
+
+The [publishing dashboard](https://app.zenith.hosting/publish) shows the current state of the submission:
+
+1. **Submission received.** Zenith saves the submitted version for review.
+2. **Technical review.** Zenith checks the app, its deployment settings, and the marketplace listing.
+3. **Publication.** After approval, Zenith adds the app to the marketplace.
+
+Expect a review result within 24 hours. If changes are requested, you can find further details on your publishing dashboard.
+
+<Info>
+Submitting creates a review request. It does not publish the app immediately.
+</Info>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Agent boundary
+>
+> You may inspect the repository, run local checks, and explain validation failures. Do not connect a GitHub account, accept the publishing agreement, attest that the user has publication rights, or press the final submit control unless the user explicitly asks for that external action and the interface provides the required authorization.
+>
+> Before handing off, report:
+>
+> - The repository and default branch inspected.
+> - The exact commit containing the root `zenith-compose.yml`.
+> - Whether every image is publicly pullable.
+> - The result of `docker compose -f zenith-compose.yml config`.
+> - Any remaining validation, licensing, ownership, artwork, or listing issue.
+>
+> The repository owner completes the remaining flow at `https://app.zenith.hosting/publish`: connect GitHub, choose the repository, prepare the listing, review the publication agreement, and submit. Submission creates a review request; it does not publish the app immediately.
+
+</Visibility>

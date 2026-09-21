@@ -1,0 +1,64 @@
+---
+title: "Use the Zenith skill"
+description: "Install the create-zenith-compose skill and let a coding agent prepare your repository for Zenith."
+---
+
+The `create-zenith-compose` skill gives supported coding agents the instructions they need to prepare a public repository for Zenith.
+
+<Visibility for="humans">
+
+## Install the skill
+
+From the root of your app's repository, run:
+
+```bash
+npx skills add zenith-hosting/skills --skill create-zenith-compose
+```
+
+The installer detects your coding agents and asks where to install the skill. The default installation is scoped to the current project.
+
+<Info>
+The skill supports agents that use the open Agent Skills format, including Codex, Claude Code, Cursor, and OpenCode.
+</Info>
+
+## Ask your agent to prepare the repository
+
+Open the repository in your agent and ask:
+
+```text
+Prepare this repository for publishing on Zenith.
+```
+
+The skill works through the repository in two stages:
+
+<Steps>
+  <Step title="Publish a container image">
+    The agent reuses a suitable public image or prepares a Dockerfile and CI workflow for a public `linux/amd64` image.
+  </Step>
+  <Step title="Create zenith-compose.yml">
+    The agent writes and checks the manifest using the app's actual ports, environment variables, services, and persistent-data paths.
+  </Step>
+</Steps>
+
+The agent can prepare branches and pull requests. You still control merges, registry visibility changes, and the final submission to Zenith.
+
+<Check>
+Installation is complete when your agent can find the `create-zenith-compose` skill in the app repository.
+</Check>
+
+<Card title="Read the manual quickstart" icon="book-open" href="/content/quickstart">
+  Prefer to prepare the repository yourself? Follow the same workflow step by step.
+</Card>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Install the repository-scoped skill from the app repository:
+>
+> ```bash
+> npx skills add zenith-hosting/skills --skill create-zenith-compose
+> ```
+>
+> Then invoke `create-zenith-compose` to inspect the repository and resume any existing container or manifest work. Follow the skill's authorization boundaries. 
+</Visibility>

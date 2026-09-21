@@ -1,0 +1,60 @@
+---
+title: "Publish an app"
+sidebarTitle: "Quickstart"
+description: "Prepare your app, describe how Zenith should run it, and submit it for review."
+---
+
+Zenith publishes apps from public GitHub repositories. Your repository supplies the container images and a `zenith-compose.yml` file that describes how to run them.
+
+<Visibility for="humans">
+
+<Card title="Let an agent prepare the repository" icon="wand-magic-sparkles" href="/content/agent-skill" cta="Install the Zenith skill" arrow="true">
+  The Zenith skill can prepare the container image and `zenith-compose.yml` pull requests for you.
+</Card>
+
+Follow these steps in order.
+
+<Steps>
+  <Step title="Containerise your app">
+    Build each service as a container image. Push the images to a public registry so Zenith can pull them.
+
+    [Prepare your container images](/content/containerise)
+  </Step>
+  <Step title="Create zenith-compose.yml">
+    Add the services, public endpoints, environment values, and persistent storage that your app needs.
+
+    [Create the manifest](/content/zenith-compose)
+  </Step>
+  <Step title="Submit your app">
+    Connect the repository to Zenith, build the marketplace listing, and send the app for review.
+
+    [Submit the repository](/content/submit)
+  </Step>
+</Steps>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Agent workflow
+>
+> Prepare a repository for Zenith in this order:
+>
+> 1. Inspect every service and ensure it has a publicly pullable container image.
+> 2. Create or validate the root `zenith-compose.yml` using the [manifest guide](/content/zenith-compose) and [complete reference](/content/zenith-compose-reference).
+> 3. Run the local Compose checks documented on those pages.
+> 4. Stop before account connection, publication consent, or final submission. Those actions require the repository owner in the [publishing dashboard](/content/submit).
+>
+> Preserve existing application behavior. Do not add `internal.yml`, pricing, Kubernetes placement, or any other operator-only field to the developer repository.
+
+</Visibility>
+
+## Before you start
+
+<Info>
+You need all of the following before you begin:
+
+- A public GitHub repository that you own or administer.
+- Permission to publish and maintain the app.
+- Docker installed for local builds and tests.
+</Info>

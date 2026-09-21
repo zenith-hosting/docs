@@ -1,0 +1,85 @@
+---
+title: "Containerise your app"
+description: "Make a public container image available for every service that Zenith will run."
+---
+
+Zenith Hosting deploys prebuilt container images. We do not build your source code during deployment, so you will need to publish a container image for each service Zenith will run.
+
+<Info>
+    If your project already publishes a maintained container image that can be pulled without authentication, skip this step and go straight to [creating `zenith-compose.yml`](/content/zenith-compose).
+</Info>
+
+<Visibility for="agents">
+
+> Agent task
+>
+> Inspect the repository and find a maintained, anonymously pullable image for every runtime service. If one does not exist, reuse the project's production path to prepare the smallest suitable Dockerfile and publishing workflow. Prefer GHCR for a GitHub-hosted project.
+>
+> Do not publish an image, change package visibility, or push commits unless the user explicitly authorizes those external actions. The task is complete when every image starts the production process, works without host-mounted repository files, exposes its expected port, identifies its persistent-data paths, and can be pulled without registry credentials.
+
+</Visibility>
+
+## 1. Prepare an image
+
+If you have a production Dockerfile, use that. Otherwise, follow Docker's guide for your language or framework.
+
+<Columns cols={2}>
+  <Card title="Build and share an image" icon="package" href="https://docs.docker.com/get-started/tutorials/run-an-app/">
+    Follow Docker's introductory build, run, and publish tutorial.
+  </Card>
+  <Card title="Choose a framework guide" icon="code" href="https://docs.docker.com/guides/">
+    Find Docker's containerisation guide for Node.js, Python, Go, Java, and other stacks.
+  </Card>
+</Columns>
+
+### Check the runtime
+
+To be compatible with the Zenith platform, each container must:
+
+- Support `linux/amd64` architecture
+- Read configuration/secrets from environment variables
+- Write logs to `stdout` and `stderr`
+- Listen on `0.0.0.0`, not `localhost`
+- Store any persistent data in a documented directory
+- Start using only the container image, declared environment variables, and declared volumes
+
+<Warning>
+Do not copy `.env` files, private keys, registry credentials, or other secrets into the image. Secrets MUST only be supplied via environment variables.
+</Warning>
+
+## 2. Publish the image
+
+Publish the image to a registry that allows anonymous pulls. For GitHub projects, GHCR is recommended. Docker Hub is also supported.
+
+<Columns cols={2}>
+  <Card title="Publish to GHCR" icon="github" href="https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images#publishing-images-to-github-packages">
+    Use GitHub Actions to build and publish an image to `ghcr.io`.
+  </Card>
+  <Card title="Publish to Docker Hub" icon="package" href="https://docs.docker.com/docker-hub/repos/manage/hub-images/push/">
+    Tag and push an image to a public Docker Hub repository.
+  </Card>
+</Columns>
+
+<Warning>
+New GHCR packages are private by default. Before continuing, follow GitHub's [package visibility guide](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility) to make the image public. GitHub warns that a public package cannot be made private again.
+</Warning>
+
+## 3. Record what Zenith needs
+
+<Check>
+    Before continuing, make sure you can pull the container image without signing into the registry. Note its version tag/immutable digest, listening port, any heath endpoint, required environment variables and persistent-data paths for the next steps.
+</Check>
+
+<Visibility for="humans">
+
+  <Card title="Next: create zenith-compose.yml" icon="file-code" href="/content/zenith-compose">
+    Describe the services that Zenith should run.
+  </Card>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Next action: create or update the root [`zenith-compose.yml`](/content/zenith-compose). Carry forward the exact image references, listening ports, health checks, environment requirements, and persistent-data paths established here.
+
+</Visibility>

@@ -1,53 +1,99 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Zenith",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5D45B6",
+    "light": "#8668DC",
+    "dark": "#9275DD"
+  },
+  "appearance": {
+    "default": "system",
+    "strict": false
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#111113"
+    }
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "light": "github-light-default",
+        "dark": "vitesse-black"
+      }
+    }
   },
   "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/assets/wordmark.svg",
+    "dark": "/assets/wordmark.svg",
+    "href": "https://zenith.hosting"
+  },
   "navigation": {
     "pages": [
       {
-        "group": "Getting Started",
+        "group": "Start here",
         "pages": [
           "index",
-          "quickstart"
+          "content/agent-skill"
+        ]
+      },
+      {
+        "group": "Publishing guide",
+        "pages": [
+          "content/quickstart",
+          "content/containerise",
+          {
+            "group": "Create zenith-compose.yml",
+            "root": "content/zenith-compose",
+            "pages": [
+              "content/zenith-compose-reference"
+            ]
+          },
+          "content/submit"
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
+    ]
+  },
+  "redirects": [
+    {
+      "source": "/quickstart",
+      "destination": "/content/quickstart"
+    },
+    {
+      "source": "/agent-skill",
+      "destination": "/content/agent-skill"
+    },
+    {
+      "source": "/containerise",
+      "destination": "/content/containerise"
+    },
+    {
+      "source": "/zenith-compose",
+      "destination": "/content/zenith-compose"
+    },
+    {
+      "source": "/zenith-compose-reference",
+      "destination": "/content/zenith-compose-reference"
+    },
+    {
+      "source": "/submit",
+      "destination": "/content/submit"
     }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  ],
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "GitHub",
+        "href": "https://github.com/zenith-hosting"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "label": "Publish an app",
+      "href": "https://app.zenith.hosting/publish"
     }
   },
   "contextual": {
@@ -64,9 +110,7 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/zenith-hosting"
     }
   }
 }

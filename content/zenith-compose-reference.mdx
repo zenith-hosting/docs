@@ -1,0 +1,555 @@
+---
+title: "zenith-compose.yml reference"
+sidebarTitle: "Reference"
+description: "Complete reference for `zenith-compose.yml` specification."
+---
+`zenith-compose.yml` is a Docker Compose file with one Zenith extension: `x-zenith`.
+
+<Visibility for="agents">
+
+> Agent contract
+>
+> Treat this page as the complete public schema and runtime contract for developer-authored `zenith-compose.yml`. Generate only documented fields. Unknown `x-zenith` fields fail parsing, and accepted Compose fields outside the compatibility table have no public runtime guarantee.
+>
+</Visibility>
+
+## File requirements
+
+| Requirement | Value |
+| --- | --- |
+| File name | `zenith-compose.yml` |
+| Location | Repository root |
+| Repository | Public GitHub repository connected to Zenith |
+| Revision | The current commit on the repository's default branch |
+| Maximum size | `128 KiB` |
+| Format | Non-empty YAML that loads as a Compose project |
+| Services | At least one service; every service must set `image` |
+| Zenith extension | One top-level `x-zenith` map |
+
+Zenith fetches the exact default-branch commit selected during submission. Later changes to `zenith-compose.yml` are **not automatically pulled** and will not change an existing submission until you submit a new revision. 
+
+
+Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately; only the fields listed under [Compose compatibility](#compose-compatibility) have defined Zenith runtime behavior.
+
+## Document shape
+
+```yaml zenith-compose.yml
+x-zenith:
+  catalog: {}
+  expose: []
+  storage: {}
+  configs: []
+  env: {}
+
+services: {}
+volumes: {}
+secrets: {}
+networks: {}
+```
+
+| Key | Type | Required | Purpose |
+| --- | --- | --- | --- |
+| `x-zenith.catalog` | map | Yes | Marketplace metadata. `catalog.name` is required. |
+| `x-zenith.expose` | list | Yes | Public HTTP endpoints. At least one entry is required. |
+| `x-zenith.storage` | map | No | Metadata and sizing for persistent named volumes. |
+| `x-zenith.configs` | list | No | Reserved configuration-file metadata. It is not applied at runtime. |
+| `x-zenith.env` | map | No | Deployment-specific environment values. |
+| `services` | map | Yes | Compose services to run. |
+| `volumes` | map | No | Compose named volumes. |
+| `secrets` | map | No | Compose secrets. Developer submissions cannot load them from files. |
+| `networks` | map | No | Parsed by Compose. Zenith places all services in one isolated deployment network. |
+
+## `catalog`
+
+`catalog` contains marketplace-facing metadata.
+
+```yaml
+x-zenith:
+  catalog:
+    name: Example
+    description: Run Example on your own Zenith deployment.
+    detail: A longer description shown on the app page.
+    authors:
+      - Example contributors
+    tags:
+      - productivity
+      - collaboration
+    source: https://github.com/example/example
+    website: https://example.org
+    funding: https://github.com/sponsors/example
+    license: AGPL-3.0-only
+    alternatives:
+      - Example Cloud
+    icon: https://cdn.zenith.hosting/example/icon.png
+    banner: https://cdn.zenith.hosting/example/banner.webp
+    screenshots:
+      - key: https://cdn.zenith.hosting/example/dashboard.webp
+        caption: The Example dashboard showing recent projects.
+```
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `name` | string | Yes | None | Display name |
+| `description` | string | No | Empty | Short marketplace summary. |
+| `authors` | list of strings | No | Empty list | Upstream authors or contributor groups. |
+| `tags` | list of strings | No | Empty list | Search and category terms. |
+| `source` | string | No | Empty | Source repository URL. |
+| `license` | string | No | Empty | License identifier or name. |
+| `detail` | string | No | Empty | Long-form listing description. |
+| `funding` | string | No | Empty | Upstream donation or sponsorship URL. |
+| `alternatives` | list of strings | No | Empty list | Products the app can replace. |
+| `website` | string | No | Empty | Project homepage. If `source` is already your homepage, you can omit this. |
+
+App artwork/screenshots are collected in the app submission form.
+
+## `expose`
+
+`expose` maps service ports to public HTTP hostnames. Every entry produces a route from `/` to the selected service and port.
+
+```yaml
+x-zenith:
+  expose:
+    - service: web
+      port: 3000
+      web: true
+    - service: api
+      port: 8080
+      label: api
+      web: true
+```
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `service` | string | Yes | None | Exact key from the top-level `services` map. |
+| `port` | integer | Yes | None | Container port from `1` through `65535`. The port does not need to appear in the service's Compose `ports` list. |
+| `web` | boolean | Yes | None | Marks a service as app-facing for owner-added environment variables. It does not enable or disable the HTTP route. |
+
+The primary endpoint uses the deployment's normal hostname:
+
+```text
+https://<deployment>.<owner>.zenith.hosting
+```
+
+### Endpoint validation
+
+- `service` must name an existing Compose service.
+- `port` must be between `1` and `65535`.
+- `web` must be present, even when its value is `false`.
+- A non-empty `label` must be a lowercase DNS label. It may contain `a-z`, `0-9`, and `-`, and must start and end with a letter or digit.
+- Endpoint labels must resolve to distinct hostnames. This includes collisions after the generated hostname is limited to 63 characters.
+- Use at most one empty label. Multiple empty labels resolve to the same primary hostname and fail validation.
+
+<Note>
+All exposed endpoints use HTTP routing with TLS terminated by Zenith. `web: false` does not create a raw TCP or UDP endpoint.
+</Note>
+
+The primary endpoint is also the target for a verified custom domain. Labelled endpoints keep their Zenith-generated hostnames.
+
+## `storage`
+
+`storage` is a map keyed by a stable storage ID. Each value describes a top-level Compose named volume.
+
+```yaml
+x-zenith:
+  storage:
+    uploads:
+      volume: app_uploads
+      label: Uploaded files
+      description: Files uploaded by app users.
+      default_size: 5Gi
+      public: true
+
+services:
+  app:
+    image: ghcr.io/example/app:1.0.0
+    volumes:
+      - app_uploads:/app/uploads
+
+volumes:
+  app_uploads:
+```
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| Map key | string | Yes | None | Stable storage ID used by Zenith's deployment API and file manager. |
+| `volume` | string | Required when `public: true` | Empty | Name of the top-level Compose volume this entry describes. |
+| `label` | string | No | Empty | Owner-facing storage name. |
+| `description` | string | No | Empty | Owner-facing description of the stored data. |
+| `default_size` | string | No | `100Mi` for an undeclared or unsized volume | Kubernetes resource quantity such as `256Mi`, `2Gi`, or `10Gi`. |
+| `public` | boolean | No | `false` | Makes the referenced volume eligible for owner file-manager access where that feature is enabled. |
+
+Zenith combines the app's persistent volumes into one deployment allocation. Each named, anonymous, or persistent directory mount contributes to its total size. A named volume uses the matching `default_size`; an unsized volume contributes `100Mi`.
+
+The stored directory for a named volume is derived from its Compose volume name with `_` changed to `-`. Two volume names that normalize to the same directory, such as `app_data` and `app-data`, fail validation.
+
+### Public storage validation
+
+When `public` is `true`:
+
+- `volume` must be set.
+- The named volume must exist in the top-level Compose `volumes` map.
+- The volume cannot be external.
+- No other public storage entry may reference the same volume.
+
+The volume does not need to be mounted by a service for the manifest to validate.
+
+<Warning>
+Use `public: true` only for files an app owner should browse or edit. Do not expose database files, indexes, or credentials.
+</Warning>
+
+## `configs`
+
+`configs` accepts a list of configuration-file descriptors.
+
+```yaml
+x-zenith:
+  configs:
+    - path: /etc/example/config.ini
+      description: Example server settings.
+      type: ini
+```
+
+| Field | Type | Required | Default |
+| --- | --- | --- | --- |
+| `path` | string | No | Empty |
+| `description` | string | No | Empty |
+| `type` | string | No | Empty |
+
+<Warning>
+Zenith currently parses these fields but does not mount, edit, or transform the referenced file during deployment. Treat `configs` as reserved metadata. Do not depend on it for app configuration.
+</Warning>
+
+This block is separate from the standard Compose `configs` key. Developer submissions cannot use `configs.file`, and the current Zenith renderer does not mount Compose config references.
+
+## `env`
+
+`env` is a map from a container environment variable name to an environment declaration.
+
+```yaml
+x-zenith:
+  env:
+    APP_URL: ZENITH_PUBLIC_URL
+    ADMIN_EMAIL:
+      input:
+        label: Administrator email
+        default_template: '{ZENITH_OWNER_EMAIL}'
+        required: true
+        validator: '[^@]+@[^@]+'
+    APP_SECRET:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      input:
+        label: App secret
+        secret: true
+      services:
+        - web
+```
+
+The map key is the literal variable name injected into the container. It must match:
+
+```text
+^[A-Za-z_][A-Za-z0-9_]*$
+```
+
+### Environment declaration
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `input` | object | Conditional | None | Makes the value editable and supplies validation and display metadata. It can also be the value source. |
+| `generate` | string | Conditional | None | RE2 pattern used to mint a stable value. |
+| `template` | string | Conditional | None | String containing `{NAME}` references, resolved on every render. |
+| `alias` | string | Conditional | None | Name of another declaration or Zenith built-in, resolved on every render. |
+| `services` | list of strings | No | All services | Limits injection to the listed Compose services. |
+| `legacy` | string | No | Empty | Pre-v1 migration key for a generated value. Do not use it for a new app. |
+| `transform` | string | No | Empty | Applies `argon2id` or `urlencode` after resolution. |
+
+Every declaration must contain `input` or exactly one computed source: `generate`, `template`, or `alias`. The computed source fields are mutually exclusive.
+
+A bare string is shorthand for `alias`:
+
+```yaml
+x-zenith:
+  env:
+    APP_URL: ZENITH_PUBLIC_URL
+```
+
+This is equivalent to:
+
+```yaml
+x-zenith:
+  env:
+    APP_URL:
+      alias: ZENITH_PUBLIC_URL
+```
+
+### `input`
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `label` | string | No | Environment variable name | Label shown in the deployment environment editor. |
+| `description` | string | No | Empty | Help text shown with the value. |
+| `default` | string | No | Empty | Initial literal value for an input-only declaration. Stored on first non-empty resolution. |
+| `required` | boolean | No | `false` | Fails rendering when the raw resolved value is empty. |
+| `validator` | string | No | Empty | RE2 pattern matched against the complete raw value. |
+| `default_template` | string | No | Empty | Initial templated value. It is resolved and stored once, then stops tracking its references. |
+| `secret` | boolean | No | `false` | Masks a non-generated value in the environment editor. |
+
+`default` and `default_template` are mutually exclusive. Neither may be used when the same declaration has `generate`, `template`, or `alias`.
+
+An `input` attached to a computed source adds display metadata and validation. It also makes the field available in the deployment editor. A generated input accepts an owner replacement because its stored raw value is the source. An `alias` or `template` remains source-driven and resolves again on every render. An input-only declaration uses the stored owner value or its default.
+
+Environment values are limited to `4096` bytes when set through the deployment editor.
+
+Clearing an input-only value resets it to its declared default on the next render. A computed input cannot be cleared to an empty value; it must be replaced with another value. A declaration without `input` is not owner-editable.
+
+### Resolution sources
+
+| Source | First render | Later renders | Stored value |
+| --- | --- | --- | --- |
+| Input only | Owner value, otherwise `default` or `default_template` | Reuses the stored value unless the owner changes or clears it | Raw value |
+| `generate` | Mints from the RE2 pattern | Reuses the original value | Raw generated value |
+| `alias` | Resolves the target | Resolves the target again | Latest value is stamped for display, but not used as the next source |
+| `template` | Substitutes all references | Substitutes all references again | Stored only when paired with `input`, for display |
+
+<Note>
+Generated and defaulted values are stable for the lifetime of a deployment. Changing a generator pattern or input default does not rotate a value already stored by an existing deployment.
+</Note>
+
+Aliases and templates are dynamic. They track changes such as a newly verified custom domain.
+
+Resolution is dependency-aware and order-independent. An alias or template may reference a declaration written later in the YAML map. Unknown references and dependency cycles fail validation.
+
+### `generate`
+
+`generate` accepts an RE2 regular expression. Zenith expands it into a deterministic value and stores the result.
+
+```yaml
+x-zenith:
+  env:
+    DATABASE_PASSWORD:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+```
+
+The pattern must be non-empty, compile under RE2, and produce a non-empty value. Use several independent capture groups for secrets. Zenith currently does not enforce a minimum entropy threshold.
+
+Generation is deterministic for one deployment and pattern, but the stored value is authoritative. It is not re-generated during normal rendering.
+
+### `template`
+
+`template` substitutes `{NAME}` references with declarations or built-ins on every render.
+
+```yaml
+x-zenith:
+  env:
+    API_URL:
+      template: '{ZENITH_PUBLIC_URL}/api'
+```
+
+Reference names use the same environment-name grammar. Write `{{` when you need a literal `{` before text that could otherwise be parsed as a reference.
+
+An empty template fails validation.
+
+### `alias`
+
+`alias` copies another declaration or built-in on every render.
+
+```yaml
+x-zenith:
+  env:
+    APP_HOST:
+      alias: ZENITH_PUBLIC_HOST
+```
+
+The target must exist and must not create a dependency cycle.
+
+### `services`
+
+Without `services`, Zenith injects a declared value into every Compose service. With `services`, every listed name must exist and the value is injected only into those services.
+
+```yaml
+x-zenith:
+  env:
+    DATABASE_PASSWORD:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      services:
+        - web
+        - database
+```
+
+An `x-zenith.env` value replaces a Compose `environment` value with the same name in every targeted service.
+
+Owners may also add undeclared environment variables to a deployment. Zenith injects those variables only into services marked by an `expose` entry with `web: true`. If no exposed endpoint has `web: true`, Zenith injects them into every service.
+
+### `transform`
+
+Transforms run after the raw source is resolved and validated. The raw value remains stored and visible according to the `input` rules. The transformed value is injected and is the value referenced by downstream aliases and templates.
+
+| Value | Allowed sources | Result |
+| --- | --- | --- |
+| `argon2id` | Input only or `generate` | Argon2id PHC string using `m=19456`, `t=2`, `p=1`, a 32-byte key, and a stable 16-byte deployment-specific salt. |
+| `urlencode` | Any source | RFC 3986 component encoding. Spaces become `%20`. |
+
+Use `urlencode` on one URL component, such as an SMTP username or password. Do not apply it to a complete URL.
+
+An unknown transform fails validation. `argon2id` on `alias` or `template` also fails validation.
+
+### `legacy`
+
+`legacy` migrates a stored value from Zenith's pre-v1 `{{ZENITH_*}}` token system into a generated declaration.
+
+```yaml
+x-zenith:
+  env:
+    DATABASE_PASSWORD:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      legacy: ZENITH_RANDOM0
+```
+
+Use it only when migrating an app that already has Zenith deployments. New apps must omit it. The supported migration value is the old token name without braces.
+
+The old inline token syntax is no longer expanded. A rendered value containing `{{ZENITH_` fails submission validation.
+
+### Built-ins
+
+Built-ins are resolved for each deployment. Zenith does not inject them automatically. Declare an alias or template when the app needs one.
+
+| Name | Value |
+| --- | --- |
+| `ZENITH_PUBLIC_URL` | Verified custom-domain URL when present; otherwise the canonical Zenith URL. |
+| `ZENITH_PUBLIC_HOST` | Authority from `ZENITH_PUBLIC_URL`, including a port when present. |
+| `ZENITH_PUBLIC_URLS` | Canonical Zenith URL and verified custom-domain URL, comma-separated. |
+| `ZENITH_PUBLIC_HOSTS` | Canonical Zenith authority and verified custom-domain authority, comma-separated. |
+| `ZENITH_PUBLIC_HOSTNAME` | Hostname from `ZENITH_PUBLIC_URL`, without a port. |
+| `ZENITH_PUBLIC_HOSTNAMES` | Canonical Zenith hostname and verified custom-domain hostname, comma-separated and without ports. |
+| `ZENITH_PUBLIC_URL_<LABEL>` | URL for a labelled endpoint. The label is uppercased and `-` becomes `_`. |
+| `ZENITH_OWNER_EMAIL` | Deployment owner's account email, or empty when unavailable. |
+| `ZENITH_SMTP_HOST` | `smtp.zenithusercontent.com`. |
+| `ZENITH_SMTP_PORT` | `587`. |
+| `ZENITH_SMTP_FROM` | Sender address assigned by the deployment's Zenith region. |
+| `ZENITH_SMTP_DISPLAY` | Canonical Zenith hostname, even when a custom domain is verified. |
+| `ZENITH_SMTP_USER` | Deployment-specific SMTP username. |
+| `ZENITH_SMTP_PASS` | Deployment-specific SMTP password. |
+
+`ZENITH_OWNER_EMAIL` can be empty. Use it with `default_template` when creating an owner account. The value is stored only after it resolves non-empty.
+
+## Compose compatibility
+
+Zenith uses the Compose model for service definitions, then maps a defined subset to its runtime. Every service becomes one independently managed workload.
+
+### Service fields
+
+| Compose field | Zenith behavior |
+| --- | --- |
+| `image` | Required for every service. Zenith pulls the declared image. It does not run a Compose `build`. Pin a tag or digest that the runtime can pull. |
+| `entrypoint` | Becomes the container command. |
+| `command` | Becomes the container arguments. |
+| `environment` | Injected as literal container environment values. Targeted `x-zenith.env` values take precedence. |
+| `ports` | Declares container and internal service ports. An `x-zenith.expose` port is added automatically when absent. Host IP binding has no Zenith meaning. |
+| `volumes` | Named and anonymous volume mounts become persistent storage. `tmpfs` mounts remain memory-backed and ephemeral. Bind mounts are rejected during developer submission. |
+| `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level secret content has a defined submission path. |
+| `healthcheck` | Becomes startup, readiness, and liveness checks. `CMD` and `CMD-SHELL` are supported. `NONE` or `disable: true` disables checks. |
+| `depends_on` | Only long-form `condition: service_healthy` creates a wait. `service_started` and `service_completed_successfully` do not create runtime ordering. |
+| `deploy.replicas` | Sets the number of service replicas. Default: `1`. |
+| `deploy.resources.limits` | Sets CPU and memory limits. |
+| `deploy.resources.reservations` | Sets CPU and memory requests. |
+| `working_dir` | Sets the container working directory. |
+| `stdin_open` | Keeps standard input open. |
+| `tty` | Allocates a TTY. |
+| `user` | Numeric `uid` or `uid:gid` values set the runtime user and group. Named users are not translated. |
+| `read_only` | Makes the container root filesystem read-only. Declared mounts remain available. |
+| `cap_add`, `cap_drop` | Add or remove Linux capabilities. |
+| `privileged` | Runs the container as privileged and adds a security warning to the review. Use only when the app cannot run without it. |
+
+Services resolve each other by service name inside the deployment. `ports` does not limit which ports sibling services can reach.
+
+### Health checks
+
+Compose health checks are exec-based in Zenith:
+
+- `CMD` runs the argument list directly.
+- `CMD-SHELL` runs through `/bin/sh -c`.
+- `interval`, `timeout`, and `retries` map to probe timing.
+- `start_period` creates a startup probe budget.
+- Readiness always uses a failure threshold of `3` so unhealthy services stop receiving public traffic promptly.
+
+Public traffic is sent only to service replicas that pass readiness. A dependency using `condition: service_healthy` waits for the same readiness signal.
+
+### Persistent volumes
+
+Top-level, non-external named volumes share one persistent allocation. Each volume receives its own stable subdirectory. Anonymous volume mounts are also persistent and receive stable subdirectories derived from the service name and target path.
+
+External volumes do not create Zenith storage. Do not rely on an external volume being present in the deployment.
+
+### Secrets and configs
+
+Developer submissions cannot read repository or host files. Therefore:
+
+- Top-level `secrets.<name>.file` is rejected.
+- Top-level `configs.<name>.file` is rejected.
+- Service `env_file` and `label_file` are rejected.
+- Service `extends` is rejected.
+- Top-level `include` is rejected.
+
+Compose config references are not mounted by the current runtime. Prefer fixed `environment` values, `x-zenith.env`, or configuration baked into the image.
+
+### Unsupported build and host features
+
+<Warning>
+Zenith does not build images during deployment. A service with `build` still needs `image`; the declared image is what runs.
+
+Bind mounts are rejected. The deployment cannot read a path from the GitHub repository or Zenith host. Bake required files into the image, use an inline secret for sensitive static content, or use a named volume for mutable data.
+</Warning>
+
+## Submission validation
+
+Zenith performs these checks before accepting the app for review:
+
+1. Fetch the root `zenith-compose.yml` from the selected default-branch commit.
+2. Enforce the non-empty `128 KiB` file limit.
+3. Reject external file references and bind mounts.
+4. Load the Compose project with an empty host environment and discard environment files.
+5. Parse `x-zenith` strictly.
+6. Validate required catalogue and endpoint fields.
+7. Resolve every `x-zenith.env` declaration against deterministic test deployment data.
+8. Render the complete app and reject invalid or duplicate runtime object names.
+9. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
+
+Validation also catches:
+
+- An empty Compose service set.
+- A service without `image`.
+- Endpoint references to missing services.
+- Invalid or colliding service names.
+- Colliding persistent-volume directory names.
+- Invalid public storage references.
+- Invalid environment declarations.
+
+<Info>
+Passing validation makes the app eligible for review. It does not publish the app automatically.
+</Info>
+
+## Defaults summary
+
+| Setting | Default |
+| --- | --- |
+| `storage.public` | `false` |
+| Undeclared or unsized persistent volume contribution | `100Mi` |
+| `env.services` | Every Compose service |
+| `input.label` | Environment variable name |
+| `input.required` | `false` |
+| `input.secret` | `false` |
+| Service replicas | `1` |
+| Secret mount target | `/run/secrets/<source>` |
+
+<Visibility for="humans">
+
+  <Card title="Build the file" icon="arrow-left" href="/content/zenith-compose">
+    Return to the step-by-step guide.
+  </Card>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> When generating a manifest, use the smallest field set that describes the verified app behavior. Validate references across `services`, `expose`, `storage`, and `env`; then run the checks in [Create zenith-compose.yml](/content/zenith-compose). Do not submit or publish on the user's behalf without explicit authorization.
+
+</Visibility>

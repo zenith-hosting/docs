@@ -1,0 +1,294 @@
+---
+title: "Create zenith-compose.yml"
+description: "Describe the services, endpoints, environment values, and storage that your app needs."
+---
+
+`zenith-compose.yml` packages a Docker Compose app for Zenith. It keeps the Compose services, networks, and volumes intact, then adds one top-level `x-zenith` block for listing and deployment settings.
+
+Every service needs a public container image. If you do not have one yet, [containerise your app first](/content/containerise).
+
+<Visibility for="humans">
+
+<Info>
+This page covers the fields most apps need. Use the [complete `zenith-compose.yml` reference](/content/zenith-compose-reference) for every field, default, validation rule, and runtime behavior.
+</Info>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Agent task
+>
+> Create or review `zenith-compose.yml` at the repository root. Start from the app's working Compose model, require an `image` for every service, and add only the public `x-zenith` fields documented here. Consult the [complete reference](/content/zenith-compose-reference) before introducing a field that is not in the example.
+>
+> Preserve service names, internal hostnames, commands, health checks, and volume targets unless a verified runtime requirement demands a change. Never add operator-only pricing, resource, placement, taint, or toleration fields.
+
+</Visibility>
+
+## Create the file
+
+Add `zenith-compose.yml` to the root of a public GitHub repository. Start from the Compose file you already use to run the app.
+
+This example packages PrivateBin with one public service and one persistent volume:
+
+```yaml zenith-compose.yml
+x-zenith:
+  catalog:
+    name: PrivateBin
+    description: Share encrypted notes with expiring links.
+    authors:
+      - PrivateBin contributors
+    tags:
+      - encrypted notes
+      - secret sharing
+    source: https://github.com/PrivateBin/PrivateBin
+    website: https://privatebin.info
+    license: Zlib
+  expose:
+    - service: privatebin
+      port: 8080
+      web: true
+  storage:
+    data:
+      volume: privatebin_data
+      label: Encrypted paste data
+      description: Server state and encrypted paste records.
+      default_size: 2Gi
+
+services:
+  privatebin:
+    image: ghcr.io/privatebin/nginx-fpm-alpine:2.0.6@sha256:13290e2f04bfd98cf8fc7e8d216fb76b2b2d12373d4923b859cd41c2d984fde8
+    ports:
+      - "8080:8080"
+    volumes:
+      - privatebin_data:/srv/data
+
+volumes:
+  privatebin_data:
+```
+
+The minimum `x-zenith` block needs `catalog.name` and one `expose` entry. The rest depends on the app.
+
+## Configure the listing
+
+`catalog` describes the app in the Zenith marketplace.
+
+| Field | Value |
+| --- | --- |
+| `name` | App name. Required. |
+| `description` | Short marketplace summary. |
+| `detail` | Longer listing copy. |
+| `authors` | List of upstream authors or contributor groups. |
+| `tags` | List of search and category terms. |
+| `source` | Source repository URL. |
+| `website` | Project homepage when it differs from `source`. |
+| `funding` | Upstream funding or donation URL. |
+| `license` | License identifier or name. |
+| `alternatives` | Products the app can replace. |
+| `icon` | Full URL for the app icon. |
+| `banner` | Full URL for the listing banner. |
+| `screenshots` | List of `{ key, caption }` image entries. `key` is the full image URL. |
+
+The developer dashboard collects listing copy and artwork during submission. Zenith writes the uploaded artwork URLs into the catalogue copy of the file.
+
+## Expose a service
+
+`expose` maps a Compose service port to a public Zenith hostname.
+
+```yaml
+x-zenith:
+  expose:
+    - service: web
+      port: 3000
+      web: true
+```
+
+Each entry has these fields:
+
+| Field | Value |
+| --- | --- |
+| `service` | Compose service name. Required. |
+| `port` | Service port from `1` through `65535`. Required. |
+| `web` | Marks the app's web-facing service. Required. Use `true` for an HTTP app. |
+
+```yaml
+x-zenith:
+  expose:
+    - service: web
+      port: 3000
+      web: true
+    - service: api
+      port: 8080
+      web: true
+```
+
+
+## Add deployment variables
+
+`env` declares values Zenith resolves for each deployment. The map key becomes the literal container environment variable name.
+
+### Use the public URL
+
+A bare string aliases another declared value or a Zenith built-in:
+
+```yaml
+x-zenith:
+  env:
+    APP_URL: ZENITH_PUBLIC_URL
+    APP_HOST: ZENITH_PUBLIC_HOST
+```
+
+Common built-ins include:
+
+| Name | Value |
+| --- | --- |
+| `ZENITH_PUBLIC_URL` | Verified custom URL, or the deployment's Zenith URL. |
+| `ZENITH_PUBLIC_HOST` | Public URL authority, including a port when present. |
+| `ZENITH_PUBLIC_HOSTNAME` | Public hostname without a port. |
+| `ZENITH_OWNER_EMAIL` | Account email when available. |
+| `ZENITH_PUBLIC_URL_<LABEL>` | URL for a labelled `expose` entry. |
+| `ZENITH_SMTP_HOST` | Hosted SMTP server. |
+| `ZENITH_SMTP_PORT` | Hosted SMTP port. |
+| `ZENITH_SMTP_USER` | Deployment SMTP username. |
+| `ZENITH_SMTP_PASS` | Deployment SMTP password. |
+
+### Generate a stable secret
+
+Use `generate` with an RE2 pattern. Zenith creates the value once and keeps it for the life of the deployment.
+
+```yaml
+x-zenith:
+  env:
+    APP_SECRET:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      input:
+        label: App secret
+        secret: true
+```
+
+Changing the pattern does not rotate a value that a deployment already stores.
+
+### Build a value from other variables
+
+Use `template` to substitute `{NAME}` references on every render:
+
+```yaml
+x-zenith:
+  env:
+    API_URL:
+      template: '{ZENITH_PUBLIC_URL}/api'
+```
+
+Add `services` to inject a value into selected Compose services. Without it, Zenith injects the value into every service.
+
+```yaml
+x-zenith:
+  env:
+    DATABASE_PASSWORD:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      services:
+        - web
+        - database
+```
+
+An `x-zenith.env` value replaces a Compose `environment` entry with the same name in the services it targets.
+
+## Add persistent storage
+
+`storage` describes a Compose named volume and its initial size.
+
+```yaml
+x-zenith:
+  storage:
+    uploads:
+      volume: app_uploads
+      label: Uploaded files
+      description: Images and documents uploaded by app users.
+      default_size: 5Gi
+      public: true
+
+services:
+  app:
+    volumes:
+      - app_uploads:/app/uploads
+
+volumes:
+  app_uploads:
+```
+
+| Field | Value |
+| --- | --- |
+| `volume` | Compose named volume. |
+| `label` | Name shown to the app owner. |
+| `description` | Description of the stored data. |
+| `default_size` | Resource quantity such as `256Mi`, `2Gi`, or `10Gi`. |
+| `public` | Gives the app owner file-manager access when enabled. Defaults to `false`. |
+
+<Warning>
+Do not mark database files, indexes, credentials, or other application internals as public storage. `public: true` makes the volume eligible for app-owner file-manager access.
+</Warning>
+
+## Check the file locally
+
+Ask Docker Compose to parse the file:
+
+```bash
+docker compose -f zenith-compose.yml config
+```
+
+Then run the app:
+
+```bash
+docker compose -f zenith-compose.yml up -d
+```
+
+These commands test the Compose model and the app. Zenith runs the `x-zenith`-specific validation during submission.
+
+<Check>
+Continue when Compose parses the file without errors, every service stays running, and each exposed service answers on its declared port.
+</Check>
+
+## Compose restrictions
+
+<Warning>
+Zenith reads one self-contained file. Developer submissions cannot use:
+
+- Bind mounts.
+- Top-level `include`.
+- `configs.file` or `secrets.file`.
+- Service `extends`, `env_file`, or `label_file`.
+
+`privileged: true` triggers a security warning during review.
+</Warning>
+
+## Commit the file
+
+Commit `zenith-compose.yml` at the repository root on the default branch. The file must be non-empty and no larger than `128 KiB`.
+
+<Visibility for="humans">
+
+<Columns cols={2}>
+  <Card title="Next: submit your app" icon="arrow-right" href="/content/submit">
+    Connect the repository to Zenith and send it for review.
+  </Card>
+
+  <Card title="Complete reference" icon="book-open" href="/content/zenith-compose-reference">
+    Check every supported field, default, validation rule, and runtime behavior.
+  </Card>
+</Columns>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Completion checks
+>
+> - `zenith-compose.yml` is at the repository root and is no larger than `128 KiB`.
+> - Every service has a publicly pullable `image`.
+> - `docker compose -f zenith-compose.yml config` succeeds without unsupported external files.
+> - The app starts locally and its exposed ports, health checks, environment values, and persistent paths behave as declared.
+> - No bind mount, top-level `include`, `configs.file`, `secrets.file`, service `extends`, `env_file`, or `label_file` remains.
+>
+> After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
+
+</Visibility>
