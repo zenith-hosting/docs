@@ -35,7 +35,8 @@ Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parse
 
 ```yaml zenith-compose.yml
 x-zenith:
-  catalog: {}
+  catalog:
+    name: Example
   expose: []
   storage: {}
   configs: []
@@ -49,8 +50,8 @@ networks: {}
 
 | Key | Type | Required | Purpose |
 | --- | --- | --- | --- |
-| `x-zenith.catalog` | map | Yes | Marketplace metadata. `catalog.name` is required. |
-| `x-zenith.expose` | list | Yes | Public HTTP endpoints. At least one entry is required. |
+| `x-zenith.catalog` | map | Yes | App identity and marketplace metadata. `catalog.name` is required. |
+| `x-zenith.expose` | list | Yes | Public HTTP endpoint. One entry is required. |
 | `x-zenith.storage` | map | No | Metadata and sizing for persistent named volumes. |
 | `x-zenith.configs` | list | No | Reserved configuration-file metadata. It is not applied at runtime. |
 | `x-zenith.env` | map | No | Deployment-specific environment values. |
@@ -61,60 +62,27 @@ networks: {}
 
 ## `catalog`
 
-`catalog` contains marketplace-facing metadata.
+Set `catalog.name` in the repository. It is the only catalogue field required before submission.
 
 ```yaml
 x-zenith:
   catalog:
     name: Example
-    description: Run Example on your own Zenith deployment.
-    detail: A longer description shown on the app page.
-    authors:
-      - Example contributors
-    tags:
-      - productivity
-      - collaboration
-    source: https://github.com/example/example
-    website: https://example.org
-    funding: https://github.com/sponsors/example
-    license: AGPL-3.0-only
-    alternatives:
-      - Example Cloud
-    icon: https://cdn.zenith.hosting/example/icon.png
-    banner: https://cdn.zenith.hosting/example/banner.webp
-    screenshots:
-      - key: https://cdn.zenith.hosting/example/dashboard.webp
-        caption: The Example dashboard showing recent projects.
 ```
 
 | Field | Type | Required | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `name` | string | Yes | None | Display name |
-| `description` | string | No | Empty | Short marketplace summary. |
-| `authors` | list of strings | No | Empty list | Upstream authors or contributor groups. |
-| `tags` | list of strings | No | Empty list | Search and category terms. |
-| `source` | string | No | Empty | Source repository URL. |
-| `license` | string | No | Empty | License identifier or name. |
-| `detail` | string | No | Empty | Long-form listing description. |
-| `funding` | string | No | Empty | Upstream donation or sponsorship URL. |
-| `alternatives` | list of strings | No | Empty list | Products the app can replace. |
-| `website` | string | No | Empty | Project homepage. If `source` is already your homepage, you can omit this. |
-
-App artwork/screenshots are collected in the app submission form.
+| `name` | string | Yes | None | App name. |
 
 ## `expose`
 
-`expose` maps service ports to public HTTP hostnames. Every entry produces a route from `/` to the selected service and port.
+`expose` maps one service port to the app's public HTTP hostname. The entry produces a route from `/` to the selected service and port.
 
 ```yaml
 x-zenith:
   expose:
     - service: web
       port: 3000
-      web: true
-    - service: api
-      port: 8080
-      label: api
       web: true
 ```
 
@@ -124,7 +92,7 @@ x-zenith:
 | `port` | integer | Yes | None | Container port from `1` through `65535`. The port does not need to appear in the service's Compose `ports` list. |
 | `web` | boolean | Yes | None | Marks a service as app-facing for owner-added environment variables. It does not enable or disable the HTTP route. |
 
-The primary endpoint uses the deployment's normal hostname:
+The endpoint uses the deployment's normal hostname:
 
 ```text
 https://<deployment>.<owner>.zenith.hosting
@@ -135,15 +103,13 @@ https://<deployment>.<owner>.zenith.hosting
 - `service` must name an existing Compose service.
 - `port` must be between `1` and `65535`.
 - `web` must be present, even when its value is `false`.
-- A non-empty `label` must be a lowercase DNS label. It may contain `a-z`, `0-9`, and `-`, and must start and end with a letter or digit.
-- Endpoint labels must resolve to distinct hostnames. This includes collisions after the generated hostname is limited to 63 characters.
-- Use at most one empty label. Multiple empty labels resolve to the same primary hostname and fail validation.
+- `expose` must contain one entry.
 
 <Note>
-All exposed endpoints use HTTP routing with TLS terminated by Zenith. `web: false` does not create a raw TCP or UDP endpoint.
+The exposed endpoint uses HTTP routing with TLS terminated by Zenith. `web: false` does not create a raw TCP or UDP endpoint.
 </Note>
 
-The primary endpoint is also the target for a verified custom domain. Labelled endpoints keep their Zenith-generated hostnames.
+The endpoint is also the target for a verified custom domain.
 
 ## `storage`
 
@@ -250,6 +216,8 @@ The map key is the literal variable name injected into the container. It must ma
 ^[A-Za-z_][A-Za-z0-9_]*$
 ```
 
+The name must not collide with a Zenith-reserved variable. Zenith also rejects `PATH`, every `LD_*` name, and environment variables that can make a loader or interpreter execute user-selected code: `NODE_OPTIONS`, `PYTHONPATH`, `PYTHONSTARTUP`, `PYTHONHOME`, `BASH_ENV`, `ENV`, `JAVA_TOOL_OPTIONS`, `_JAVA_OPTIONS`, `RUBYOPT`, `PERL5LIB`, and `PERL5OPT`. Set a fixed value under the service's Compose `environment` block when the app requires one of these names.
+
 ### Environment declaration
 
 | Field | Type | Required | Default | Behavior |
@@ -294,6 +262,8 @@ x-zenith:
 | `secret` | boolean | No | `false` | Masks a non-generated value in the environment editor. |
 
 `default` and `default_template` are mutually exclusive. Neither may be used when the same declaration has `generate`, `template`, or `alias`.
+
+A static `default` that uses an address at `zenith.hosting`, `example.com`, `example.org`, or `example.net` fails submission validation. To seed an account with the deployment owner's address, use `default_template: '{ZENITH_OWNER_EMAIL}'`.
 
 An `input` attached to a computed source adds display metadata and validation. It also makes the field available in the deployment editor. A generated input accepts an owner replacement because its stored raw value is the source. An `alias` or `template` remains source-driven and resolves again on every render. An input-only declaration uses the stored owner value or its default.
 
@@ -420,7 +390,6 @@ Built-ins are resolved for each deployment. Zenith does not inject them automati
 | `ZENITH_PUBLIC_HOSTS` | Canonical Zenith authority and verified custom-domain authority, comma-separated. |
 | `ZENITH_PUBLIC_HOSTNAME` | Hostname from `ZENITH_PUBLIC_URL`, without a port. |
 | `ZENITH_PUBLIC_HOSTNAMES` | Canonical Zenith hostname and verified custom-domain hostname, comma-separated and without ports. |
-| `ZENITH_PUBLIC_URL_<LABEL>` | URL for a labelled endpoint. The label is uppercased and `-` becomes `_`. |
 | `ZENITH_OWNER_EMAIL` | Deployment owner's account email, or empty when unavailable. |
 | `ZENITH_SMTP_HOST` | `smtp.zenithusercontent.com`. |
 | `ZENITH_SMTP_PORT` | `587`. |

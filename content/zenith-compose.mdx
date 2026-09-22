@@ -35,15 +35,6 @@ This example packages PrivateBin with one public service and one persistent volu
 x-zenith:
   catalog:
     name: PrivateBin
-    description: Share encrypted notes with expiring links.
-    authors:
-      - PrivateBin contributors
-    tags:
-      - encrypted notes
-      - secret sharing
-    source: https://github.com/PrivateBin/PrivateBin
-    website: https://privatebin.info
-    license: Zlib
   expose:
     - service: privatebin
       port: 8080
@@ -71,25 +62,11 @@ The minimum `x-zenith` block needs `catalog.name` and one `expose` entry. The re
 
 ## Configure the listing
 
-`catalog` describes the app in the Zenith marketplace.
+Set the app name in `catalog`. You will complete the marketplace listing in the submission form.
 
 | Field | Value |
 | --- | --- |
 | `name` | App name. Required. |
-| `description` | Short marketplace summary. |
-| `detail` | Longer listing copy. |
-| `authors` | List of upstream authors or contributor groups. |
-| `tags` | List of search and category terms. |
-| `source` | Source repository URL. |
-| `website` | Project homepage when it differs from `source`. |
-| `funding` | Upstream funding or donation URL. |
-| `license` | License identifier or name. |
-| `alternatives` | Products the app can replace. |
-| `icon` | Full URL for the app icon. |
-| `banner` | Full URL for the listing banner. |
-| `screenshots` | List of `{ key, caption }` image entries. `key` is the full image URL. |
-
-The developer dashboard collects listing copy and artwork during submission. Zenith writes the uploaded artwork URLs into the catalogue copy of the file.
 
 ## Expose a service
 
@@ -110,18 +87,6 @@ Each entry has these fields:
 | `service` | Compose service name. Required. |
 | `port` | Service port from `1` through `65535`. Required. |
 | `web` | Marks the app's web-facing service. Required. Use `true` for an HTTP app. |
-
-```yaml
-x-zenith:
-  expose:
-    - service: web
-      port: 3000
-      web: true
-    - service: api
-      port: 8080
-      web: true
-```
-
 
 ## Add deployment variables
 
@@ -146,7 +111,6 @@ Common built-ins include:
 | `ZENITH_PUBLIC_HOST` | Public URL authority, including a port when present. |
 | `ZENITH_PUBLIC_HOSTNAME` | Public hostname without a port. |
 | `ZENITH_OWNER_EMAIL` | Account email when available. |
-| `ZENITH_PUBLIC_URL_<LABEL>` | URL for a labelled `expose` entry. |
 | `ZENITH_SMTP_HOST` | Hosted SMTP server. |
 | `ZENITH_SMTP_PORT` | Hosted SMTP port. |
 | `ZENITH_SMTP_USER` | Deployment SMTP username. |
