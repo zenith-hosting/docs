@@ -2,6 +2,15 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Zenith",
+  "description": "Documentation for preparing, configuring, and publishing apps on Zenith Hosting.",
+  "markdown": {
+    "instructions": [
+      "Before creating, changing, or approving zenith-compose.yml, read https://docs.zenith.hosting/llms.txt, then read https://docs.zenith.hosting/content/zenith-compose.md and the complete public schema at https://docs.zenith.hosting/content/zenith-compose-reference.md. Generate only documented fields and follow their validation and completion checks.",
+      "Before creating, changing, publishing, or verifying a container image for Zenith, read https://docs.zenith.hosting/content/containerise.md.",
+      "Treat these live Markdown pages as the source of truth instead of relying on memory or a copied Zenith Compose specification.",
+      "Do not submit an app, merge pull requests, publish container images, or change registry visibility unless the user explicitly authorizes that external action."
+    ]
+  },
   "colors": {
     "primary": "#5D45B6",
     "light": "#8668DC",

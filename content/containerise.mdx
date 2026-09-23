@@ -3,10 +3,10 @@ title: "Containerise your app"
 description: "Make a public container image available for every service that Zenith will run."
 ---
 
-Zenith Hosting deploys prebuilt container images. We do not build your source code during deployment, so you will need to publish a container image for each service Zenith will run.
+Zenith Hosting deploys prebuilt container images. We do not build your source code during deployment, so you need to publish a container image for each service your app needs.
 
 <Info>
-    If your project already publishes a maintained container image that can be pulled without authentication, skip this step and go straight to [creating `zenith-compose.yml`](/content/zenith-compose).
+    If you already maintain a container image that can be pulled without authentication, skip this step and go straight to [creating `zenith-compose.yml`](/content/zenith-compose).
 </Info>
 
 <Visibility for="agents">
@@ -24,7 +24,7 @@ Zenith Hosting deploys prebuilt container images. We do not build your source co
 If you have a production Dockerfile, use that. Otherwise, follow Docker's guide for your language or framework.
 
 <Columns cols={2}>
-  <Card title="Build and share an image" icon="package" href="https://docs.docker.com/get-started/tutorials/run-an-app/">
+  <Card title="Build and share an image" icon="cube" href="https://docs.docker.com/get-started/tutorials/run-an-app/">
     Follow Docker's introductory build, run, and publish tutorial.
   </Card>
   <Card title="Choose a framework guide" icon="code" href="https://docs.docker.com/guides/">
@@ -37,7 +37,7 @@ If you have a production Dockerfile, use that. Otherwise, follow Docker's guide 
 To be compatible with the Zenith platform, each container must:
 
 - Support `linux/amd64` architecture
-- Read configuration/secrets from environment variables
+- Read secrets and core configuration from environment variables
 - Write logs to `stdout` and `stderr`
 - Listen on `0.0.0.0`, not `localhost`
 - Store any persistent data in a documented directory
@@ -49,13 +49,13 @@ Do not copy `.env` files, private keys, registry credentials, or other secrets i
 
 ## 2. Publish the image
 
-Publish the image to a registry that allows anonymous pulls. For GitHub projects, GHCR is recommended. Docker Hub is also supported.
+Publish the image to a registry that allows anonymous pulls. For GitHub projects, GHCR is the simplest option. Docker Hub is also a good option.
 
 <Columns cols={2}>
   <Card title="Publish to GHCR" icon="github" href="https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images#publishing-images-to-github-packages">
     Use GitHub Actions to build and publish an image to `ghcr.io`.
   </Card>
-  <Card title="Publish to Docker Hub" icon="package" href="https://docs.docker.com/docker-hub/repos/manage/hub-images/push/">
+  <Card title="Publish to Docker Hub" icon="docker" href="https://docs.docker.com/docker-hub/repos/manage/hub-images/push/">
     Tag and push an image to a public Docker Hub repository.
   </Card>
 </Columns>
@@ -73,7 +73,7 @@ New GHCR packages are private by default. Before continuing, follow GitHub's [pa
 <Visibility for="humans">
 
   <Card title="Next: create zenith-compose.yml" icon="file-code" href="/content/zenith-compose">
-    Describe the services that Zenith should run.
+    Describe the metadata, configuration, services and storage for your app.
   </Card>
 
 </Visibility>

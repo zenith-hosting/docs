@@ -3,13 +3,13 @@ title: "zenith-compose.yml reference"
 sidebarTitle: "Reference"
 description: "Complete reference for `zenith-compose.yml` specification."
 ---
-`zenith-compose.yml` is a Docker Compose file with one Zenith extension: `x-zenith`.
+`zenith-compose.yml` is a Compose document with a Zenith extension named `x-zenith`. This page documents the `x-zenith` fields accepted by the repository's `zenith-compose.schema.json`.
 
 <Visibility for="agents">
 
 > Agent contract
 >
-> Treat this page as the complete public schema and runtime contract for developer-authored `zenith-compose.yml`. Generate only documented fields. Unknown `x-zenith` fields fail parsing, and accepted Compose fields outside the compatibility table have no public runtime guarantee.
+> Treat this page as the complete public schema contract for developer-authored `zenith-compose.yml`. Generate only documented fields. Unknown `x-zenith` fields fail schema validation. Runtime behavior can impose additional constraints beyond this schema.
 >
 </Visibility>
 
@@ -19,17 +19,16 @@ description: "Complete reference for `zenith-compose.yml` specification."
 | --- | --- |
 | File name | `zenith-compose.yml` |
 | Location | Repository root |
-| Repository | Public GitHub repository connected to Zenith |
+| Repository | Public repository connected to Zenith |
 | Revision | The current commit on the repository's default branch |
 | Maximum size | `128 KiB` |
 | Format | Non-empty YAML that loads as a Compose project |
-| Services | At least one service; every service must set `image` |
-| Zenith extension | One top-level `x-zenith` map |
+| Services | Required top-level Compose map. |
+| Zenith extension | Required top-level `x-zenith` map |
 
 Zenith fetches the exact default-branch commit selected during submission. Later changes to `zenith-compose.yml` are **not automatically pulled** and will not change an existing submission until you submit a new revision. 
 
-
-Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately; only the fields listed under [Compose compatibility](#compose-compatibility) have defined Zenith runtime behavior.
+Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately; only the fields listed under [Compose compatibility](#compose-compatibility) have defined Zenith runtime behavior, others will be ignored.
 
 ## Document shape
 
@@ -37,7 +36,16 @@ Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parse
 x-zenith:
   catalog:
     name: Example
-  expose: []
+    description: Example application.
+    authors: [Example team]
+    tags: [example]
+    source: https://github.com/example/app
+    license: MIT
+    alternatives: []
+  expose:
+    - service: web
+      port: 3000
+      web: true
   storage: {}
   configs: []
   env: {}
@@ -50,29 +58,42 @@ networks: {}
 
 | Key | Type | Required | Purpose |
 | --- | --- | --- | --- |
-| `x-zenith.catalog` | map | Yes | App identity and marketplace metadata. `catalog.name` is required. |
-| `x-zenith.expose` | list | Yes | Public HTTP endpoint. One entry is required. |
-| `x-zenith.storage` | map | No | Metadata and sizing for persistent named volumes. |
-| `x-zenith.configs` | list | No | Reserved configuration-file metadata. It is not applied at runtime. |
-| `x-zenith.env` | map | No | Deployment-specific environment values. |
-| `services` | map | Yes | Compose services to run. |
-| `volumes` | map | No | Compose named volumes. |
-| `secrets` | map | No | Compose secrets. Developer submissions cannot load them from files. |
-| `networks` | map | No | Parsed by Compose. Zenith places all services in one isolated deployment network. |
+| `x-zenith.catalog` | map | Yes | Catalogue metadata. Required fields are listed below. |
+| `x-zenith.expose` | list | Yes | At least one public endpoint. |
+| `x-zenith.storage` | map | No | Metadata for persistent volumes. |
+| `x-zenith.configs` | list | No | Zenith configuration metadata. |
+| `x-zenith.env` | map | No | Deployment environment declarations. |
+| `services` | map | Yes | Compose services referenced by `x-zenith`. Define these with your normal Compose workflow. |
 
 ## `catalog`
 
-Set `catalog.name` in the repository. It is the only catalogue field required before submission.
+Set the required catalogue fields in the repository. `alternatives` and the other optional fields can be omitted.
 
 ```yaml
 x-zenith:
   catalog:
     name: Example
+    description: Example application.
+    authors:
+      - Example team
+    tags:
+      - example
+    source: https://github.com/example/app
+    license: MIT
 ```
 
-| Field | Type | Required | Default | Behavior |
-| --- | --- | --- | --- | --- |
-| `name` | string | Yes | None | App name. |
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | App name. |
+| `description` | string | Yes | App description. |
+| `authors` | list of strings | Yes | One or more unique author names. |
+| `tags` | list of strings | Yes | One or more unique tags. |
+| `source` | URI | Yes | Source or repository URL. |
+| `license` | string | Yes | License identifier or name. |
+| `alternatives` | list of strings | No | Unique names of comparable apps. |
+| `detail` | string | No | Additional catalogue detail. Rougly one paragraph. |
+| `funding` | URI | No | Funding URL or empty string. |
+| `website` | URI | No | Website URL or empty string. |
 
 ## `expose`
 
@@ -90,7 +111,8 @@ x-zenith:
 | --- | --- | --- | --- | --- |
 | `service` | string | Yes | None | Exact key from the top-level `services` map. |
 | `port` | integer | Yes | None | Container port from `1` through `65535`. The port does not need to appear in the service's Compose `ports` list. |
-| `web` | boolean | Yes | None | Marks a service as app-facing for owner-added environment variables. It does not enable or disable the HTTP route. |
+| `label` | string | No | None | Description of port use. |
+| `web` | boolean | Yes | None | Marks a service as user-facing. |
 
 The endpoint uses the deployment's normal hostname:
 
@@ -122,7 +144,6 @@ x-zenith:
       volume: app_uploads
       label: Uploaded files
       description: Files uploaded by app users.
-      default_size: 5Gi
       public: true
 
 services:
@@ -135,18 +156,15 @@ volumes:
   app_uploads:
 ```
 
-| Field | Type | Required | Default | Behavior |
-| --- | --- | --- | --- | --- |
-| Map key | string | Yes | None | Stable storage ID used by Zenith's deployment API and file manager. |
-| `volume` | string | Required when `public: true` | Empty | Name of the top-level Compose volume this entry describes. |
-| `label` | string | No | Empty | Owner-facing storage name. |
-| `description` | string | No | Empty | Owner-facing description of the stored data. |
-| `default_size` | string | No | `100Mi` for an undeclared or unsized volume | Kubernetes resource quantity such as `256Mi`, `2Gi`, or `10Gi`. |
-| `public` | boolean | No | `false` | Makes the referenced volume eligible for owner file-manager access where that feature is enabled. |
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| Map key | string | Yes | Stable storage ID used by Zenith's deployment API and file manager. |
+| `volume` | string | Required when `public: true` | Name of the top-level Compose volume this entry describes. |
+| `label` | string | No | Owner-facing storage name. |
+| `description` | string | No | Owner-facing description of the stored data. |
+| `public` | boolean | No | Marks the volume as eligible for owner file-manager access where supported. |
 
-Zenith combines the app's persistent volumes into one deployment allocation. Each named, anonymous, or persistent directory mount contributes to its total size. A named volume uses the matching `default_size`; an unsized volume contributes `100Mi`.
-
-The stored directory for a named volume is derived from its Compose volume name with `_` changed to `-`. Two volume names that normalize to the same directory, such as `app_data` and `app-data`, fail validation.
+The schema defines the metadata shape only. Persistent-volume allocation, directory naming, and sizing are deployment behaviors outside this schema.
 
 ### Public storage validation
 
@@ -165,7 +183,7 @@ Use `public: true` only for files an app owner should browse or edit. Do not exp
 
 ## `configs`
 
-`configs` accepts a list of configuration-file descriptors.
+`x-zenith.configs` accepts a list of configuration-file descriptors. This is separate from the top-level Compose `configs` map.
 
 ```yaml
 x-zenith:
@@ -175,17 +193,17 @@ x-zenith:
       type: ini
 ```
 
-| Field | Type | Required | Default |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `path` | string | No | Empty |
-| `description` | string | No | Empty |
-| `type` | string | No | Empty |
+| `path` | string | Yes | Non-empty configuration path. |
+| `description` | string | No | Configuration description. |
+| `type` | string | No | Configuration type. |
 
 <Warning>
 Zenith currently parses these fields but does not mount, edit, or transform the referenced file during deployment. Treat `configs` as reserved metadata. Do not depend on it for app configuration.
 </Warning>
 
-This block is separate from the standard Compose `configs` key. Developer submissions cannot use `configs.file`, and the current Zenith renderer does not mount Compose config references.
+This is Zenith metadata only. It does not mount, edit, or transform the referenced file during deployment.
 
 ## `env`
 
@@ -262,6 +280,8 @@ x-zenith:
 | `secret` | boolean | No | `false` | Masks a non-generated value in the environment editor. |
 
 `default` and `default_template` are mutually exclusive. Neither may be used when the same declaration has `generate`, `template`, or `alias`.
+
+Submission validation resolves declarations with deterministic test deployment data and no owner-entered values. An input marked `required: true` must therefore resolve non-empty from `default`, `default_template`, or a computed source. A required input with none of these is rejected before the deployment editor can ask the owner for it.
 
 A static `default` that uses an address at `zenith.hosting`, `example.com`, `example.org`, or `example.net` fails submission validation. To seed an account with the deployment owner's address, use `default_template: '{ZENITH_OWNER_EMAIL}'`.
 
@@ -482,32 +502,36 @@ Zenith performs these checks before accepting the app for review:
 8. Render the complete app and reject invalid or duplicate runtime object names.
 9. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
 
-Validation also catches:
+### Schema validation
 
-- An empty Compose service set.
-- A service without `image`.
-- Endpoint references to missing services.
-- Invalid or colliding service names.
-- Colliding persistent-volume directory names.
-- Invalid public storage references.
-- Invalid environment declarations.
+The schema requires:
+
+- A top-level `services` map.
+- A top-level `x-zenith` map.
+- `x-zenith.catalog` with `name`, `description`, `authors`, `tags`, `source`, and `license`.
+- At least one `x-zenith.expose` entry.
+- `x-zenith.expose` entries with `service`, `port`, and `web`.
+- `x-zenith.storage` entries with `volume`.
+- `x-zenith.configs` entries with `path`.
+- `x-zenith.env` keys matching the environment-name pattern and declarations containing an input or one computed source.
+
+The schema rejects unknown fields inside `x-zenith`, rejects unknown top-level fields unless they begin with `x-`, and enforces the documented name, URI, enum, uniqueness, and numeric range constraints. A deployment target may impose additional checks.
+
 
 <Info>
 Passing validation makes the app eligible for review. It does not publish the app automatically.
 </Info>
 
-## Defaults summary
+## x-zenith defaults
 
-| Setting | Default |
+| Setting | Default or constraint |
 | --- | --- |
-| `storage.public` | `false` |
-| Undeclared or unsized persistent volume contribution | `100Mi` |
-| `env.services` | Every Compose service |
-| `input.label` | Environment variable name |
-| `input.required` | `false` |
-| `input.secret` | `false` |
-| Service replicas | `1` |
-| Secret mount target | `/run/secrets/<source>` |
+| `storage.public` | `false` when omitted. |
+| `env.services` | Every Compose service when omitted. |
+| `input.label` | The environment variable name when omitted. |
+| `input.required` | `false` when omitted. |
+| `input.secret` | `false` when omitted. |
+| `x-zenith.expose` | At least one entry is required. |
 
 <Visibility for="humans">
 

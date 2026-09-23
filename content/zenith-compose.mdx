@@ -1,9 +1,9 @@
 ---
-title: "Create zenith-compose.yml"
-description: "Describe the services, endpoints, environment values, and storage that your app needs."
+title: "Create a zenith-compose.yml"
+description: "Describe the metadata, configuration, services and storage for your app."
 ---
 
-`zenith-compose.yml` packages a Docker Compose app for Zenith. It keeps the Compose services, networks, and volumes intact, then adds one top-level `x-zenith` block for listing and deployment settings.
+`zenith-compose.yml` is a Compose Specification file with a required top-level `x-zenith` block for Zenith listing and deployment metadata.
 
 Every service needs a public container image. If you do not have one yet, [containerise your app first](/content/containerise).
 
@@ -19,15 +19,15 @@ This page covers the fields most apps need. Use the [complete `zenith-compose.ym
 
 > Agent task
 >
-> Create or review `zenith-compose.yml` at the repository root. Start from the app's working Compose model, require an `image` for every service, and add only the public `x-zenith` fields documented here. Consult the [complete reference](/content/zenith-compose-reference) before introducing a field that is not in the example.
+> Create or review `zenith-compose.yml` at the repository root. Start from the app's working Compose model and add the required `x-zenith` fields documented here. Consult the [complete reference](/content/zenith-compose-reference) before introducing a field that is not in the example.
 >
-> Preserve service names, internal hostnames, commands, health checks, and volume targets unless a verified runtime requirement demands a change. Never add operator-only pricing, resource, placement, taint, or toleration fields.
+> Preserve service names, internal hostnames, commands, health checks, and volume targets unless a verified runtime requirement demands a change. The schema permits Compose resource, deployment, placement, and extension fields; use only fields your deployment target supports.
 
 </Visibility>
 
 ## Create the file
 
-Add `zenith-compose.yml` to the root of a public GitHub repository. Start from the Compose file you already use to run the app.
+Add `zenith-compose.yml` to the root of your app's repository. If you already have one, start from the Compose file you use to run the app.
 
 This example packages PrivateBin with one public service and one persistent volume:
 
@@ -35,16 +35,27 @@ This example packages PrivateBin with one public service and one persistent volu
 x-zenith:
   catalog:
     name: PrivateBin
+    description: A minimalist, open-source online pastebin.
+    authors:
+      - PrivateBin contributors
+    tags:
+      - pastebin
+      - privacy
+    source: https://github.com/PrivateBin/PrivateBin
+    license: AGPL-3.0
+    alternatives: ["Pastebin"]
+    website: https://privatebin.info
   expose:
     - service: privatebin
       port: 8080
+      label: web
       web: true
   storage:
     data:
       volume: privatebin_data
       label: Encrypted paste data
       description: Server state and encrypted paste records.
-      default_size: 2Gi
+      public: false
 
 services:
   privatebin:
@@ -58,15 +69,24 @@ volumes:
   privatebin_data:
 ```
 
-The minimum `x-zenith` block needs `catalog.name` and one `expose` entry. The rest depends on the app.
+The schema requires `services` and `x-zenith`. Inside `x-zenith`, `catalog` requires `name`, `description`, `authors`, `tags`, `source`, and `license`; `expose` must contain at least one entry. The remaining catalogue fields and blocks are optional.
 
 ## Configure the listing
 
-Set the app name in `catalog`. You will complete the marketplace listing in the submission form.
+Set the catalogue metadata in `catalog`. The schema requires every field marked **Yes**.
 
-| Field | Value |
-| --- | --- |
-| `name` | App name. Required. |
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | App name. |
+| `description` | string | Yes | Short app description. |
+| `authors` | list of strings | Yes | One or more unique author names. |
+| `tags` | list of strings | Yes | One or more unique tags. |
+| `source` | URI | Yes | Source repository or project URL. |
+| `license` | string | Yes | License identifier or name. |
+| `alternatives` | list of strings | No | Comparable apps. |
+| `detail` | string | No | Additional catalogue detail. About 3-5 sentences long. |
+| `funding` | URI | No | Funding URL. |
+| `website` | URI | No | Project website. |
 
 ## Expose a service
 
@@ -86,7 +106,8 @@ Each entry has these fields:
 | --- | --- |
 | `service` | Compose service name. Required. |
 | `port` | Service port from `1` through `65535`. Required. |
-| `web` | Marks the app's web-facing service. Required. Use `true` for an HTTP app. |
+| `label` | Optional route label. It must start with a lowercase letter or digit and contain only lowercase letters, digits, and hyphens. |
+| `web` | Boolean marker for whether the service is user-facing. Required, even when `false`. |
 
 ## Add deployment variables
 
@@ -130,7 +151,7 @@ x-zenith:
         secret: true
 ```
 
-Changing the pattern does not rotate a value that a deployment already stores.
+The pattern must be a non-empty string. Changing the pattern does not rotate a value that a deployment already stores. `generate`, `template`, and `alias` are mutually exclusive.
 
 ### Build a value from other variables
 
@@ -159,7 +180,7 @@ An `x-zenith.env` value replaces a Compose `environment` entry with the same nam
 
 ## Add persistent storage
 
-`storage` describes a Compose named volume and its initial size.
+`storage` describes a Compose named volume.
 
 ```yaml
 x-zenith:
@@ -168,7 +189,6 @@ x-zenith:
       volume: app_uploads
       label: Uploaded files
       description: Images and documents uploaded by app users.
-      default_size: 5Gi
       public: true
 
 services:
@@ -182,11 +202,10 @@ volumes:
 
 | Field | Value |
 | --- | --- |
-| `volume` | Compose named volume. |
-| `label` | Name shown to the app owner. |
-| `description` | Description of the stored data. |
-| `default_size` | Resource quantity such as `256Mi`, `2Gi`, or `10Gi`. |
-| `public` | Gives the app owner file-manager access when enabled. Defaults to `false`. |
+| `volume` | Top-level Compose volume name. Required. It must contain only letters, digits, `.`, `_`, or `-`. |
+| `label` | Name shown to the app owner. Optional. |
+| `description` | Description of the stored data. Optional. |
+| `public` | Gives the app owner file-manager access when enabled. Optional, defaults to `false`. |
 
 <Warning>
 Do not mark database files, indexes, credentials, or other application internals as public storage. `public: true` makes the volume eligible for app-owner file-manager access.
@@ -212,19 +231,6 @@ These commands test the Compose model and the app. Zenith runs the `x-zenith`-sp
 Continue when Compose parses the file without errors, every service stays running, and each exposed service answers on its declared port.
 </Check>
 
-## Compose restrictions
-
-<Warning>
-Zenith reads one self-contained file. Developer submissions cannot use:
-
-- Bind mounts.
-- Top-level `include`.
-- `configs.file` or `secrets.file`.
-- Service `extends`, `env_file`, or `label_file`.
-
-`privileged: true` triggers a security warning during review.
-</Warning>
-
 ## Commit the file
 
 Commit `zenith-compose.yml` at the repository root on the default branch. The file must be non-empty and no larger than `128 KiB`.
@@ -248,11 +254,10 @@ Commit `zenith-compose.yml` at the repository root on the default branch. The fi
 > Completion checks
 >
 > - `zenith-compose.yml` is at the repository root and is no larger than `128 KiB`.
-> - Every service has a publicly pullable `image`.
-> - `docker compose -f zenith-compose.yml config` succeeds without unsupported external files.
+> - `docker compose -f zenith-compose.yml config` succeeds.
 > - The app starts locally and its exposed ports, health checks, environment values, and persistent paths behave as declared.
-> - No bind mount, top-level `include`, `configs.file`, `secrets.file`, service `extends`, `env_file`, or `label_file` remains.
+> - Every `x-zenith` field matches the schema, and every required catalogue and endpoint field is present.
 >
-> After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
+> The schema permits Compose `build`, bind mounts, `include`, `configs.file`, `secrets.file`, `extends`, `env_file`, and `label_file`. A deployment target may reject or restrict those features separately. After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
 
 </Visibility>
