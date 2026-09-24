@@ -1,6 +1,6 @@
 ---
 title: "Create a zenith-compose.yml"
-description: "Describe the metadata, configuration, services and storage for your app."
+description: "Describe your app's metadata, services, environment values, static config files, and storage."
 ---
 
 `zenith-compose.yml` is a Compose Specification file with a required top-level `x-zenith` block for Zenith listing and deployment metadata.
@@ -211,6 +211,82 @@ volumes:
 Do not mark database files, indexes, credentials, or other application internals as public storage. `public: true` makes the volume eligible for app-owner file-manager access.
 </Warning>
 
+## Add static configuration
+
+Use standard Compose `configs` with inline `content` when your app needs a static, non-secret file. Declare the file at the top level, then reference it from each service that needs it.
+
+Prefer this to an init container or shell entrypoint that only writes a fixed file. You do not need a shell in the app image, an adjacent config file, or a bind mount.
+
+This complete example runs Gatus with a status check and persistent SQLite history:
+
+```yaml zenith-compose.yml
+x-zenith:
+  catalog:
+    name: Gatus
+    description: Monitor endpoints and publish a status page.
+    authors:
+      - TwiN
+    tags:
+      - monitoring
+    source: https://github.com/TwiN/gatus
+    license: Apache-2.0
+  expose:
+    - service: gatus
+      port: 8080
+      web: true
+  storage:
+    history:
+      volume: gatus_data
+      label: Monitor history
+      description: SQLite history of endpoint checks.
+
+services:
+  gatus:
+    image: ghcr.io/twin/gatus:v5.36.0
+    environment:
+      GATUS_CONFIG_PATH: /config/config.yaml
+    configs:
+      - source: gatus-config
+        target: /config/config.yaml
+        mode: 0444
+    volumes:
+      - gatus_data:/data
+    ports:
+      - "8080:8080"
+
+configs:
+  gatus-config:
+    content: |
+      storage:
+        type: sqlite
+        path: /data/data.db
+      endpoints:
+        - name: cloudflare
+          url: https://www.cloudflare.com
+          interval: 60s
+          conditions:
+            - "[STATUS] == 200"
+
+volumes:
+  gatus_data:
+```
+
+Gatus reads `/config/config.yaml` from a read-only config mount. Its check history stays on the separate `gatus_data` volume. Only services that reference `gatus-config` receive the file.
+
+Zenith supports inline `content`, short service references, and long references with `source`, `target`, and optional `mode`. File-backed and external config sources are unsupported. See [Compose configs](/content/zenith-compose-reference#compose-configs) for defaults and validation rules.
+
+<Note>
+Standard Compose `configs` is a top-level map next to `services`. It is not the reserved `x-zenith.configs` metadata block.
+</Note>
+
+When Zenith applies an updated config definition, it restarts the services that consume the changed content. It does not update a running process's mounted file in place. Pushing a Git commit does not automatically update an existing deployment.
+
+<Warning>
+Do not put passwords, tokens, or private keys in `configs.content`. Use deployment environment values for secrets. Zenith does not substitute `x-zenith.env` values into config content.
+</Warning>
+
+If your app supports its own environment expansion in config files, declare its variables and write `$$` wherever Compose must preserve a literal `$` for the app. Keep a startup adapter when you need runtime-generated content or a writable config file. Keep database setup and dependency health checks separate from static file delivery.
+
 ## Check the file locally
 
 Ask Docker Compose to parse the file:
@@ -230,6 +306,23 @@ These commands test the Compose model and the app. Zenith runs the `x-zenith`-sp
 <Check>
 Continue when Compose parses the file without errors, every service stays running, and each exposed service answers on its declared port.
 </Check>
+
+## Zenith runtime restrictions
+
+The schema accepts standard Compose features that Zenith's deployment path does not support. Passing schema validation does not guarantee that the app can deploy.
+
+<Warning>
+Prepare one self-contained file for Zenith. Developer submissions cannot use:
+
+- Bind mounts.
+- Top-level `include`.
+- Config sources other than inline `content`, including `configs.<name>.file`, `external`, and `environment`.
+- Config ownership overrides (`uid` or `gid`) or targets that collide with another mount.
+- `secrets.<name>.file`.
+- Service `extends`, `env_file`, or `label_file`.
+
+Every service needs a public `image`; Zenith does not run Compose `build` during deployment. `privileged: true` triggers a security warning during review.
+</Warning>
 
 ## Commit the file
 
@@ -257,7 +350,9 @@ Commit `zenith-compose.yml` at the repository root on the default branch. The fi
 > - `docker compose -f zenith-compose.yml config` succeeds.
 > - The app starts locally and its exposed ports, health checks, environment values, and persistent paths behave as declared.
 > - Every `x-zenith` field matches the schema, and every required catalogue and endpoint field is present.
+> - Static non-secret files use inline Compose `configs` rather than a wrapper that only writes fixed content. Each config target is distinct and read-only.
+> - Every service has a public `image`, and no unsupported host/file dependency or config ownership override remains.
 >
-> The schema permits Compose `build`, bind mounts, `include`, `configs.file`, `secrets.file`, `extends`, `env_file`, and `label_file`. A deployment target may reject or restrict those features separately. After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
+> Check both schema validity and [Zenith runtime restrictions](#zenith-runtime-restrictions); schema acceptance alone is not deployment support. After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
 
 </Visibility>

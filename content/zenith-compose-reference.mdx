@@ -28,7 +28,7 @@ description: "Complete reference for `zenith-compose.yml` specification."
 
 Zenith fetches the exact default-branch commit selected during submission. Later changes to `zenith-compose.yml` are **not automatically pulled** and will not change an existing submission until you submit a new revision. 
 
-Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately; only the fields listed under [Compose compatibility](#compose-compatibility) have defined Zenith runtime behavior, others will be ignored.
+Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately. The repository schema may accept fields outside [Compose compatibility](#compose-compatibility), but only the listed fields have defined Zenith runtime behavior. Zenith admission also rejects the inputs listed under [Zenith runtime restrictions](#zenith-runtime-restrictions).
 
 ## Document shape
 
@@ -51,6 +51,7 @@ x-zenith:
   env: {}
 
 services: {}
+configs: {}
 volumes: {}
 secrets: {}
 networks: {}
@@ -61,9 +62,13 @@ networks: {}
 | `x-zenith.catalog` | map | Yes | Catalogue metadata. Required fields are listed below. |
 | `x-zenith.expose` | list | Yes | At least one public endpoint. |
 | `x-zenith.storage` | map | No | Metadata for persistent volumes. |
-| `x-zenith.configs` | list | No | Zenith configuration metadata. |
+| `x-zenith.configs` | list | No | Reserved Zenith configuration metadata. It is not applied at runtime. |
 | `x-zenith.env` | map | No | Deployment environment declarations. |
 | `services` | map | Yes | Compose services referenced by `x-zenith`. Define these with your normal Compose workflow. |
+| `configs` | map | No | Standard Compose inline configuration files mounted by referenced services. |
+| `volumes` | map | No | Compose named volumes. |
+| `secrets` | map | No | Compose secrets. Developer submissions cannot load them from files. |
+| `networks` | map | No | Parsed by Compose. Zenith places all services in one isolated deployment network. |
 
 ## `catalog`
 
@@ -181,9 +186,11 @@ The volume does not need to be mounted by a service for the manifest to validate
 Use `public: true` only for files an app owner should browse or edit. Do not expose database files, indexes, or credentials.
 </Warning>
 
-## `configs`
+<a id="configs"></a>
 
-`x-zenith.configs` accepts a list of configuration-file descriptors. This is separate from the top-level Compose `configs` map.
+## `x-zenith.configs`
+
+`x-zenith.configs` accepts a list of reserved configuration-file descriptors.
 
 ```yaml
 x-zenith:
@@ -200,10 +207,10 @@ x-zenith:
 | `type` | string | No | Configuration type. |
 
 <Warning>
-Zenith currently parses these fields but does not mount, edit, or transform the referenced file during deployment. Treat `configs` as reserved metadata. Do not depend on it for app configuration.
+Zenith currently parses these fields but does not mount, edit, or transform the referenced file during deployment. Treat `x-zenith.configs` as reserved metadata. Do not depend on it for app configuration.
 </Warning>
 
-This is Zenith metadata only. It does not mount, edit, or transform the referenced file during deployment.
+This metadata is separate from the standard top-level Compose [`configs`](#compose-configs) map. Use standard Compose configs to deliver static files at runtime.
 
 ## `env`
 
@@ -432,6 +439,7 @@ Zenith uses the Compose model for service definitions, then maps a defined subse
 | `entrypoint` | Becomes the container command. |
 | `command` | Becomes the container arguments. |
 | `environment` | Injected as literal container environment values. Targeted `x-zenith.env` values take precedence. |
+| `configs` | Mounts referenced top-level inline Compose configs as read-only files. Short and long service syntax are supported. |
 | `ports` | Declares container and internal service ports. An `x-zenith.expose` port is added automatically when absent. Host IP binding has no Zenith meaning. |
 | `volumes` | Named and anonymous volume mounts become persistent storage. `tmpfs` mounts remain memory-backed and ephemeral. Bind mounts are rejected during developer submission. |
 | `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level secret content has a defined submission path. |
@@ -468,24 +476,82 @@ Top-level, non-external named volumes share one persistent allocation. Each volu
 
 External volumes do not create Zenith storage. Do not rely on an external volume being present in the deployment.
 
-### Secrets and configs
+### Compose configs
+
+Use standard top-level Compose `configs` to deliver a static, non-secret file. Define each config with inline `content`, then reference it from every service that needs the file.
+
+```yaml zenith-compose.yml
+services:
+  app:
+    image: ghcr.io/example/app:1.0.0
+    configs:
+      - source: app-settings
+        target: /etc/example/settings.yaml
+        mode: 0440
+
+configs:
+  app-settings:
+    content: |
+      log_level: info
+```
+
+See [Add static configuration](/content/zenith-compose#add-static-configuration) for the complete Gatus example.
+
+#### Top-level config definition
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| Map key | string | Yes | None | Config source name used by service references. |
+| `content` | string | Yes | None | Static, non-secret file content. It counts toward the `128 KiB` manifest limit. Set `content: ''` when you intentionally need an empty file. |
+
+Only the inline `content` source is supported. Compose rejects a config definition with no source, so `content` must be present even when its value is empty. Zenith rejects `file`, `external`, `environment`, `driver`, `driver_opts`, and `template_driver` config sources.
+
+#### Service config reference
+
+A service can use short or long syntax:
+
+```yaml
+services:
+  app:
+    configs:
+      - app-settings
+      - source: logging-settings
+        target: /etc/example/logging.yaml
+        mode: 0440
+```
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| Short value | string | Yes for short syntax | None | Names a top-level config and mounts it at `/<source>`. |
+| `source` | string | Yes for long syntax | None | Names an existing top-level config. |
+| `target` | string | No | `/<source>` | Absolute file path inside the container. It must be non-empty and must not end in `/`. |
+| `mode` | octal file mode | No | Kubernetes ConfigMap default, `0644` | Sets the mounted file mode. Quote it if your YAML tooling would otherwise convert the octal value. |
+| `uid`, `gid` | string | Unsupported | None | Rejected because ConfigMap mounts cannot remap file ownership. |
+
+Each reference is service-scoped. A service receives only the configs it names. A config target must not collide with another config, volume, tmpfs, or secret mount in the same service. Unknown sources fail validation.
+
+The mounted file is read-only and uses `subPath`. Zenith performs no runtime substitution inside `content`, including no `x-zenith.env` substitution. Standard Compose interpolation still runs while the manifest loads, so write `$$` when the mounted file must contain a literal `$`. Do not put passwords, tokens, private keys, or other secrets in a ConfigMap. Use deployment environment values or inline Compose secrets for secret material.
+
+When Zenith applies an updated app definition, a content change updates `zenith/checksum` and rolls only services that consume that config. The file is not hot-reloaded in an existing container. A Git push does not update a submission or deployment automatically. Submit and apply the new definition through the normal workflow.
+
+## Zenith runtime restrictions
+
+The repository schema describes document shape. Zenith admission applies stricter deployment rules even when generic Compose syntax permits a field.
 
 Developer submissions cannot read repository or host files. Therefore:
 
 - Top-level `secrets.<name>.file` is rejected.
-- Top-level `configs.<name>.file` is rejected.
+- Top-level `configs.<name>.file` and every other non-inline config source are rejected.
 - Service `env_file` and `label_file` are rejected.
 - Service `extends` is rejected.
 - Top-level `include` is rejected.
 
-Compose config references are not mounted by the current runtime. Prefer fixed `environment` values, `x-zenith.env`, or configuration baked into the image.
-
-### Unsupported build and host features
+### Build and host features
 
 <Warning>
 Zenith does not build images during deployment. A service with `build` still needs `image`; the declared image is what runs.
 
-Bind mounts are rejected. The deployment cannot read a path from the GitHub repository or Zenith host. Bake required files into the image, use an inline secret for sensitive static content, or use a named volume for mutable data.
+Bind mounts are rejected. The deployment cannot read a path from the GitHub repository or Zenith host. Use an inline Compose config for static non-secret content, an inline secret for sensitive static content, or a named volume for mutable data.
 </Warning>
 
 ## Submission validation
@@ -494,7 +560,7 @@ Zenith performs these checks before accepting the app for review:
 
 1. Fetch the root `zenith-compose.yml` from the selected default-branch commit.
 2. Enforce the non-empty `128 KiB` file limit.
-3. Reject external file references and bind mounts.
+3. Reject external file references, unsupported config sources, and bind mounts.
 4. Load the Compose project with an empty host environment and discard environment files.
 5. Parse `x-zenith` strictly.
 6. Validate required catalogue and endpoint fields.
@@ -517,6 +583,16 @@ The schema requires:
 
 The schema rejects unknown fields inside `x-zenith`, rejects unknown top-level fields unless they begin with `x-`, and enforces the documented name, URI, enum, uniqueness, and numeric range constraints. A deployment target may impose additional checks.
 
+Runtime validation also rejects:
+
+- An empty Compose service set.
+- A service without `image`.
+- Endpoint references to missing services.
+- Invalid or colliding service names.
+- Colliding persistent-volume directory names.
+- Unknown config references, unsupported config sources or ownership, invalid config targets, and config mount collisions.
+- Invalid public storage references.
+- Invalid environment declarations.
 
 <Info>
 Passing validation makes the app eligible for review. It does not publish the app automatically.
@@ -532,6 +608,10 @@ Passing validation makes the app eligible for review. It does not publish the ap
 | `input.required` | `false` when omitted. |
 | `input.secret` | `false` when omitted. |
 | `x-zenith.expose` | At least one entry is required. |
+| Service replicas | `1` when omitted. |
+| Compose config mount target | `/<source>` when omitted. |
+| Compose config file mode | Kubernetes ConfigMap default, `0644`, when omitted. |
+| Secret mount target | `/run/secrets/<source>` when omitted. |
 
 <Visibility for="humans">
 
@@ -543,6 +623,6 @@ Passing validation makes the app eligible for review. It does not publish the ap
 
 <Visibility for="agents">
 
-> When generating a manifest, use the smallest field set that describes the verified app behavior. Validate references across `services`, `expose`, `storage`, and `env`; then run the checks in [Create zenith-compose.yml](/content/zenith-compose). Do not submit or publish on the user's behalf without explicit authorization.
+> When generating a manifest, use the smallest field set that describes the verified app behavior. Validate references across `services`, `configs`, `expose`, `storage`, and `env`; then run the checks in [Create zenith-compose.yml](/content/zenith-compose). Do not submit or publish on the user's behalf without explicit authorization.
 
 </Visibility>

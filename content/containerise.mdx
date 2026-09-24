@@ -37,11 +37,11 @@ If you have a production Dockerfile, use that. Otherwise, follow Docker's guide 
 To be compatible with the Zenith platform, each container must:
 
 - Support `linux/amd64` architecture
-- Read secrets and core configuration from environment variables
+- Read deployment-specific values and secrets from environment variables; use [inline Compose configs](/content/zenith-compose#add-static-configuration) for static, non-secret files
 - Write logs to `stdout` and `stderr`
 - Listen on `0.0.0.0`, not `localhost`
 - Store any persistent data in a documented directory
-- Start using only the container image, declared environment variables, and declared volumes
+- Start using only the container image, declared environment variables, config files, and volumes
 
 <Warning>
 Do not copy `.env` files, private keys, registry credentials, or other secrets into the image. Secrets MUST only be supplied via environment variables.
