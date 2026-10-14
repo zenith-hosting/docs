@@ -108,6 +108,33 @@ Each entry has these fields:
 | `port` | Service port from `1` through `65535`. Required. |
 | `label` | Optional route label. It must start with a lowercase letter or digit and contain only lowercase letters, digits, and hyphens. |
 | `web` | Boolean marker for whether the service is user-facing. Required, even when `false`. |
+| `forward_auth` | Optional boolean. Defaults to `false`. Requires the deployment owner's Zenith sign-in for this endpoint when enabled. See the availability note below. |
+
+### Add forward authentication
+
+<Warning>
+Forward authentication is not available yet. It depends on [Zenith PR #892](https://github.com/zenith-hosting/zenith/pull/892) and its deployment. Do not rely on this property to protect an app until Zenith confirms support.
+</Warning>
+
+For an app that has no authentication of its own, the proposed `forward_auth` option adds a Zenith sign-in check before requests reach an exposed HTTP endpoint. Set it on the individual `expose` entry, not on `x-zenith` or the Compose service:
+
+```yaml
+x-zenith:
+  expose:
+    - { service: affine, port: 3010, web: true, forward_auth: true }
+```
+
+This example shows the `expose` block only. Keep your app's `catalog`, `services`, environment, and storage definitions.
+
+Visitors who are not signed in see Zenith's login page. An incorrect password stays on that page with an error. The deployment owner can continue to the app. A different signed-in account sees access denied. This does not create or sign into an account inside your app.
+
+The option defaults to `false`, so existing manifests keep their current behavior. Configure each endpoint separately. A labelled API endpoint does not inherit another endpoint's setting, even if both route to the same service. A verified custom domain inherits the primary endpoint's setting, which is the entry with no `label`.
+
+<Warning>
+Check every route that exposes private data. Leaving another endpoint unprotected can expose the same app through that hostname. Do not protect an endpoint that must accept unauthenticated webhooks or public API traffic. Setting `web: false` does not bypass forward authentication.
+</Warning>
+
+Development preview sessions do not support `forward_auth: true`. Ordinary Docker Compose ignores `x-zenith`, so local Compose startup does not test this access check. See the [forward authentication reference](/content/zenith-compose-reference#forward-authentication) for request behavior and limits.
 
 ## Add deployment variables
 
