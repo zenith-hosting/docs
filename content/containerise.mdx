@@ -1,25 +1,25 @@
 ---
 title: "Containerise your app"
-description: "Make a public container image available for every service that Zenith will run."
+description: "Prepare your app's Dockerfile and choose how to provide its container image."
 ---
 
-Zenith Hosting deploys prebuilt container images. We do not build your source code during deployment, so you need to publish a container image for each service your app needs.
+Start with a `Dockerfile` at the repository root. Zenith can build your app image before submission, or you can use a public image. Any other services need public images.
 
 <Info>
-    If you already maintain a container image that can be pulled without authentication, skip this step and go straight to [creating `zenith-compose.yml`](/content/zenith-compose).
+    Zenith currently requires a root `Dockerfile` when you submit, even if `zenith-compose.yml` uses only prebuilt images. It will not rebuild those images. If you already have a Dockerfile, continue to [creating `zenith-compose.yml`](/content/zenith-compose).
 </Info>
 
 <Visibility for="agents">
 
 > Agent task
 >
-> Inspect the repository and find a maintained, anonymously pullable image for every runtime service. If one does not exist, reuse the project's production path to prepare the smallest suitable Dockerfile and publishing workflow. Prefer GHCR for a GitHub-hosted project.
+> Prepare a root `Dockerfile`. Use `build: .` for one app service that Zenith will build, or set its `image` to a public image. Other services need public images. Check that every declared `image` can be pulled without signing in.
 >
-> Do not publish an image, change package visibility, or push commits unless the user explicitly authorizes those external actions. The task is complete when every image starts the production process, works without host-mounted repository files, exposes its expected port, identifies its persistent-data paths, and can be pulled without registry credentials.
+> Do not publish an image, change package visibility, or push commits unless the user explicitly authorizes those external actions. Check that each image starts the production process, works without host-mounted repository files, exposes its expected port, and uses the expected persistent-data paths.
 
 </Visibility>
 
-## 1. Prepare an image
+## 1. Prepare a Dockerfile
 
 If you have a production Dockerfile, use that. Otherwise, follow Docker's guide for your language or framework.
 
@@ -47,9 +47,16 @@ To be compatible with the Zenith platform, each container must:
 Do not copy `.env` files, private keys, registry credentials, or other secrets into the image. Secrets MUST only be supplied via environment variables.
 </Warning>
 
-## 2. Publish the image
+## 2. Choose an image source
 
-Publish the image to a registry that allows anonymous pulls. For GitHub projects, GHCR is the simplest option. Docker Hub is also a good option.
+Choose one option for your app service:
+
+- **Let Zenith build it:** Set `build: .` in `zenith-compose.yml`. Zenith builds the root `Dockerfile` before submission. Do not also set `image` on that service.
+- **Use a public image:** Set `image` to an image anyone can pull, whether you publish it or its maintainers do. GHCR and Docker Hub are options.
+
+Other services need public `image` references. Zenith does not build images when it deploys an app.
+
+If you publish an image yourself, these guides can help:
 
 <Columns cols={2}>
   <Card title="Publish to GHCR" icon="github" href="https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images#publishing-images-to-github-packages">
@@ -67,7 +74,7 @@ New GHCR packages are private by default. Before continuing, follow GitHub's [pa
 ## 3. Record what Zenith needs
 
 <Check>
-    Before continuing, make sure you can pull the container image without signing into the registry. Note its version tag/immutable digest, listening port, any heath endpoint, required environment variables and persistent-data paths for the next steps.
+    Before continuing, make sure every declared `image` is publicly pullable. If you use `build: .`, check that your `Dockerfile` builds locally. Note each service's listening port, health endpoint, required environment variables, and persistent-data paths.
 </Check>
 
 <Visibility for="humans">

@@ -3,7 +3,7 @@ title: "Submit your app"
 description: "Connect your repository, prepare its marketplace listing, and submit the app for review."
 ---
 
-Submit the app after its public container images and `zenith-compose.yml` are available from the repository's default branch.
+Submit the app after its root `Dockerfile`, `zenith-compose.yml`, and any public dependency images are available from the repository's default branch.
 
 ## Check the repository
 
@@ -12,8 +12,9 @@ Before you open the dashboard, confirm all of the following:
 
 - The GitHub repository is public.
 - You own or administer the repository.
+- A `Dockerfile` exists at the repository root.
 - `zenith-compose.yml` is at the repository root on the default branch.
-- Every Compose service has a public `image`.
+- Every service has a public `image`, except one app service that can use `build: .`.
 - `docker compose -f zenith-compose.yml config` succeeds.
 </Check>
 
@@ -34,6 +35,9 @@ Only the repository owner or an authorized administrator should connect GitHub, 
   </Step>
   <Step title="Choose the repository">
     Select the public repository. Zenith checks `zenith-compose.yml` from the latest commit on its default branch.
+  </Step>
+  <Step title="Build your image, if needed">
+    If one service uses `build: .`, wait for Zenith to finish building its image before submitting.
   </Step>
   <Step title="Build the marketplace listing">
     Add the app description, website, support link, license, artwork, and screenshots. Preview the listing before you continue.
@@ -71,7 +75,7 @@ Submitting creates a review request. It does not publish the app immediately.
 >
 > - The repository and default branch inspected.
 > - The exact commit containing the root `zenith-compose.yml`.
-> - Whether every image is publicly pullable.
+> - Whether the root `Dockerfile` exists and every declared `image` is publicly pullable.
 > - The result of `docker compose -f zenith-compose.yml config`.
 > - Any remaining validation, licensing, ownership, artwork, or listing issue.
 >

@@ -3,7 +3,7 @@ title: "zenith-compose.yml reference"
 sidebarTitle: "Reference"
 description: "Complete reference for `zenith-compose.yml` specification."
 ---
-`zenith-compose.yml` is a Compose document with a Zenith extension named `x-zenith`. This page documents the `x-zenith` fields accepted by the repository's `zenith-compose.schema.json`.
+`zenith-compose.yml` is a Compose file with an `x-zenith` section. This page lists the fields Zenith accepts and explains how they behave when you deploy an app.
 
 <Visibility for="agents">
 
@@ -102,7 +102,7 @@ x-zenith:
 
 ## `expose`
 
-`expose` maps one service port to the app's public HTTP hostname. The entry produces a route from `/` to the selected service and port.
+Each `expose` entry maps a service port to a public HTTP hostname. An entry without `label` uses the app's main hostname. Labelled entries use separate endpoint hostnames.
 
 ```yaml
 x-zenith:
@@ -122,7 +122,7 @@ x-zenith:
 The endpoint uses the deployment's normal hostname:
 
 ```text
-https://<deployment>.<owner>.zenith.hosting
+https://<deployment-name>-<owner>.zh.run
 ```
 
 ### Endpoint validation
@@ -130,7 +130,7 @@ https://<deployment>.<owner>.zenith.hosting
 - `service` must name an existing Compose service.
 - `port` must be between `1` and `65535`.
 - `web` must be present, even when its value is `false`.
-- `expose` must contain one entry.
+- `expose` must contain at least one entry. Use an entry without `label` for the main hostname and custom-domain target. Labels must be unique.
 
 <Note>
 The exposed endpoint uses HTTP routing with TLS terminated by Zenith. `web: false` does not create a raw TCP or UDP endpoint.
@@ -164,7 +164,7 @@ volumes:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | Map key | string | Yes | Stable storage ID used by Zenith's deployment API and file manager. |
-| `volume` | string | Required when `public: true` | Name of the top-level Compose volume this entry describes. |
+| `volume` | string | Yes | Name of the top-level Compose volume this entry describes. |
 | `label` | string | No | Owner-facing storage name. |
 | `description` | string | No | Owner-facing description of the stored data. |
 | `public` | boolean | No | Marks the volume as eligible for owner file-manager access where supported. |
@@ -435,14 +435,15 @@ Zenith uses the Compose model for service definitions, then maps a defined subse
 
 | Compose field | Zenith behavior |
 | --- | --- |
-| `image` | Required for every service. Zenith pulls the declared image. It does not run a Compose `build`. Pin a tag or digest that the runtime can pull. |
+| `image` | Required for every service in the deployed file. Zenith pulls the declared image. Pin a tag or digest that the runtime can pull. |
+| `build` | Set `build: .` on one app service if you want Zenith to build the root `Dockerfile` before submission. Do not set `image` on that service. Other services need `image`. Zenith never builds during deployment. |
 | `entrypoint` | Becomes the container command. |
 | `command` | Becomes the container arguments. |
 | `environment` | Injected as literal container environment values. Targeted `x-zenith.env` values take precedence. |
 | `configs` | Mounts referenced top-level inline Compose configs as read-only files. Short and long service syntax are supported. |
 | `ports` | Declares container and internal service ports. An `x-zenith.expose` port is added automatically when absent. Host IP binding has no Zenith meaning. |
 | `volumes` | Named and anonymous volume mounts become persistent storage. `tmpfs` mounts remain memory-backed and ephemeral. Bind mounts are rejected during developer submission. |
-| `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level secret content has a defined submission path. |
+| `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level content is supported; it is visible in the public repository and must not contain private credentials. |
 | `healthcheck` | Becomes startup, readiness, and liveness checks. `CMD` and `CMD-SHELL` are supported. `NONE` or `disable: true` disables checks. |
 | `depends_on` | Only long-form `condition: service_healthy` creates a wait. `service_started` and `service_completed_successfully` do not create runtime ordering. |
 | `deploy.replicas` | Sets the number of service replicas. Default: `1`. |
@@ -453,8 +454,9 @@ Zenith uses the Compose model for service definitions, then maps a defined subse
 | `tty` | Allocates a TTY. |
 | `user` | Numeric `uid` or `uid:gid` values set the runtime user and group. Named users are not translated. |
 | `read_only` | Makes the container root filesystem read-only. Declared mounts remain available. |
-| `cap_add`, `cap_drop` | Add or remove Linux capabilities. |
-| `privileged` | Runs the container as privileged and adds a security warning to the review. Use only when the app cannot run without it. |
+| `cap_drop` | Removes Linux capabilities from the container. |
+| `cap_add` | Adds specific Linux capabilities; it does not enable `privileged` mode. Avoid it unless your app needs it. Some capabilities weaken isolation or may be rejected by the cluster. |
+| `privileged` | `privileged: true` is not supported. Submission fails if you set it. |
 
 Services resolve each other by service name inside the deployment. `ports` does not limit which ports sibling services can reach.
 
@@ -530,13 +532,13 @@ services:
 
 Each reference is service-scoped. A service receives only the configs it names. A config target must not collide with another config, volume, tmpfs, or secret mount in the same service. Unknown sources fail validation.
 
-The mounted file is read-only and uses `subPath`. Zenith performs no runtime substitution inside `content`, including no `x-zenith.env` substitution. Standard Compose interpolation still runs while the manifest loads, so write `$$` when the mounted file must contain a literal `$`. Do not put passwords, tokens, private keys, or other secrets in a ConfigMap. Use deployment environment values or inline Compose secrets for secret material.
+The mounted file is read-only and uses `subPath`. Zenith performs no runtime substitution inside `content`, including no `x-zenith.env` substitution. Standard Compose interpolation still runs while the manifest loads, so write `$$` when the mounted file must contain a literal `$`. Do not put passwords, tokens, or private keys in `configs.content` or inline `secrets.content`. Both are part of the public manifest. Use generated or owner-provided deployment environment values for private credentials.
 
 When Zenith applies an updated app definition, a content change updates `zenith/checksum` and rolls only services that consume that config. The file is not hot-reloaded in an existing container. A Git push does not update a submission or deployment automatically. Submit and apply the new definition through the normal workflow.
 
 ## Zenith runtime restrictions
 
-The repository schema describes document shape. Zenith admission applies stricter deployment rules even when generic Compose syntax permits a field.
+Some valid Compose settings do not work on Zenith. Use the [supported service fields](#service-fields) above and check these restrictions before submitting.
 
 Developer submissions cannot read repository or host files. Therefore:
 
@@ -545,13 +547,12 @@ Developer submissions cannot read repository or host files. Therefore:
 - Service `env_file` and `label_file` are rejected.
 - Service `extends` is rejected.
 - Top-level `include` is rejected.
+- Service `privileged: true` is rejected.
 
-### Build and host features
+Other Compose fields may parse, but Zenith does not guarantee that they will work.
 
 <Warning>
-Zenith does not build images during deployment. A service with `build` still needs `image`; the declared image is what runs.
-
-Bind mounts are rejected. The deployment cannot read a path from the GitHub repository or Zenith host. Use an inline Compose config for static non-secret content, an inline secret for sensitive static content, or a named volume for mutable data.
+Files in your public repository are public, even if you put them in `secrets.content`. Never put passwords or keys in an inline config or secret. Use deployment environment values for private credentials.
 </Warning>
 
 ## Submission validation
@@ -565,8 +566,9 @@ Zenith performs these checks before accepting the app for review:
 5. Parse `x-zenith` strictly.
 6. Validate required catalogue and endpoint fields.
 7. Resolve every `x-zenith.env` declaration against deterministic test deployment data.
-8. Render the complete app and reject invalid or duplicate runtime object names.
-9. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
+8. Reject services with `privileged: true`.
+9. Render the complete app and reject invalid or duplicate runtime object names.
+10. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
 
 ### Schema validation
 

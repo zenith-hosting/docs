@@ -4,7 +4,7 @@ sidebarTitle: "Quickstart"
 description: "Prepare your app, describe how Zenith should run it, and submit it for review."
 ---
 
-Zenith publishes apps from public GitHub repositories. Your repository supplies the container images and a `zenith-compose.yml` file that describes how to run them.
+To publish an app, put a `Dockerfile` and `zenith-compose.yml` at the root of a public GitHub repository. Zenith can build your app image before submission, or you can supply a public image.
 
 <Visibility for="humans">
 
@@ -16,7 +16,7 @@ Follow these steps in order.
 
 <Steps>
   <Step title="Containerise your app">
-    Build each service as a container image. Push the images to a public registry so Zenith can pull them.
+    Prepare a root `Dockerfile`. Choose whether Zenith builds your app image or you use a public image. Any other services need public images.
 
     [Prepare your container images](/content/containerise)
   </Step>
@@ -40,7 +40,7 @@ Follow these steps in order.
 >
 > Prepare a repository for Zenith in this order:
 >
-> 1. Inspect every service and ensure it has a publicly pullable container image.
+> 1. Prepare a root `Dockerfile`. Use a public `image` for each service, or `build: .` for one app service that Zenith will build before submission.
 > 2. Create or validate the root `zenith-compose.yml` using the [manifest guide](/content/zenith-compose) and [complete reference](/content/zenith-compose-reference).
 > 3. Run the local Compose checks documented on those pages.
 > 4. Stop before account connection, publication consent, or final submission. Those actions require the repository owner in the [publishing dashboard](/content/submit).

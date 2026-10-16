@@ -5,7 +5,7 @@ description: "Describe your app's metadata, services, environment values, static
 
 `zenith-compose.yml` is a Compose Specification file with a required top-level `x-zenith` block for Zenith listing and deployment metadata.
 
-Every service needs a public container image. If you do not have one yet, [containerise your app first](/content/containerise).
+Every service needs a container image. You can use a public image or let Zenith build one app image before submission. [Prepare your containers first](/content/containerise).
 
 <Visibility for="humans">
 
@@ -21,7 +21,7 @@ This page covers the fields most apps need. Use the [complete `zenith-compose.ym
 >
 > Create or review `zenith-compose.yml` at the repository root. Start from the app's working Compose model and add the required `x-zenith` fields documented here. Consult the [complete reference](/content/zenith-compose-reference) before introducing a field that is not in the example.
 >
-> Preserve service names, internal hostnames, commands, health checks, and volume targets unless a verified runtime requirement demands a change. The schema permits Compose resource, deployment, placement, and extension fields; use only fields your deployment target supports.
+> Preserve service names, internal hostnames, commands, health checks, and volume targets unless the app needs a change. Use the supported Compose fields in the [reference](/content/zenith-compose-reference#compose-compatibility).
 
 </Visibility>
 
@@ -309,20 +309,22 @@ Continue when Compose parses the file without errors, every service stays runnin
 
 ## Zenith runtime restrictions
 
-The schema accepts standard Compose features that Zenith's deployment path does not support. Passing schema validation does not guarantee that the app can deploy.
+Docker Compose accepts some settings that Zenith does not. Remove these before you submit:
 
 <Warning>
-Prepare one self-contained file for Zenith. Developer submissions cannot use:
-
 - Bind mounts.
 - Top-level `include`.
 - Config sources other than inline `content`, including `configs.<name>.file`, `external`, and `environment`.
 - Config ownership overrides (`uid` or `gid`) or targets that collide with another mount.
 - `secrets.<name>.file`.
 - Service `extends`, `env_file`, or `label_file`.
+- `privileged: true`.
 
-Every service needs a public `image`; Zenith does not run Compose `build` during deployment. `privileged: true` triggers a security warning during review.
 </Warning>
+
+To let Zenith build your app image, use `build: .` for one service and keep a `Dockerfile` at the repository root. Give every other service a public `image`. See [container requirements](/content/containerise) for both options.
+
+Avoid `cap_add` unless your app needs a specific Linux capability. Some capabilities weaken isolation or may be rejected by the cluster. Other Compose fields may parse without working on Zenith; use the [supported fields](/content/zenith-compose-reference#service-fields).
 
 ## Commit the file
 
@@ -351,7 +353,7 @@ Commit `zenith-compose.yml` at the repository root on the default branch. The fi
 > - The app starts locally and its exposed ports, health checks, environment values, and persistent paths behave as declared.
 > - Every `x-zenith` field matches the schema, and every required catalogue and endpoint field is present.
 > - Static non-secret files use inline Compose `configs` rather than a wrapper that only writes fixed content. Each config target is distinct and read-only.
-> - Every service has a public `image`, and no unsupported host/file dependency or config ownership override remains.
+> - Every service has a public `image`, except one app service using `build: .` with a root `Dockerfile`. No unsupported file mount or config ownership override remains.
 >
 > Check both schema validity and [Zenith runtime restrictions](#zenith-runtime-restrictions); schema acceptance alone is not deployment support. After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
 
