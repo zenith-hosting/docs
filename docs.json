@@ -2,13 +2,15 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Zenith",
-  "description": "Documentation for preparing, configuring, and publishing apps on Zenith Hosting.",
+  "description": "Use the Zenith CLI to prepare apps, test temporary deployments, and publish on Zenith Hosting.",
   "markdown": {
     "instructions": [
+      "Start with https://docs.zenith.hosting/content/quickstart.md. Use NO_COLOR=1 for plain CLI output in non-interactive agent sessions. Run without a TTY and supply explicit template and publishing inputs; NO_COLOR does not bypass prompts or authorization.",
+      "For temporary deployments, read https://docs.zenith.hosting/content/up.md. For publishing and review, read https://docs.zenith.hosting/content/publish.md. A preview uploads local files; publishing uses a pinned public GitHub commit.",
       "Before creating, changing, or approving zenith-compose.yml, read https://docs.zenith.hosting/llms.txt, then read https://docs.zenith.hosting/content/zenith-compose.md and the complete public schema at https://docs.zenith.hosting/content/zenith-compose-reference.md. Generate only documented fields and follow their validation and completion checks.",
       "Before creating, changing, publishing, or verifying a container image for Zenith, read https://docs.zenith.hosting/content/containerise.md.",
       "Treat these live Markdown pages as the source of truth instead of relying on memory or a copied Zenith Compose specification.",
-      "Do not submit an app, merge pull requests, publish container images, or change registry visibility unless the user explicitly authorizes that external action."
+      "Do not push commits, submit an app, merge pull requests, publish container images, or change registry visibility unless the user explicitly authorizes that external action. Do not bypass browser OAuth, GitHub connection, or Developer Agreement acceptance."
     ]
   },
   "colors": {
@@ -46,22 +48,27 @@
         "group": "Start here",
         "pages": [
           "index",
-          "content/agent-skill"
+          "content/quickstart"
         ]
       },
       {
-        "group": "Publishing guide",
+        "group": "CLI workflow",
         "pages": [
-          "content/quickstart",
+          "content/up",
+          "content/publish"
+        ]
+      },
+      {
+        "group": "App configuration",
+        "pages": [
           "content/containerise",
           {
-            "group": "Create zenith-compose.yml",
+            "group": "zenith-compose.yml",
             "root": "content/zenith-compose",
             "pages": [
               "content/zenith-compose-reference"
             ]
-          },
-          "content/submit"
+          }
         ]
       }
     ]
@@ -70,10 +77,6 @@
     {
       "source": "/quickstart",
       "destination": "/content/quickstart"
-    },
-    {
-      "source": "/agent-skill",
-      "destination": "/content/agent-skill"
     },
     {
       "source": "/containerise",
@@ -89,7 +92,7 @@
     },
     {
       "source": "/submit",
-      "destination": "/content/submit"
+      "destination": "/content/publish"
     }
   ],
   "navbar": {
@@ -101,8 +104,8 @@
     ],
     "primary": {
       "type": "button",
-      "label": "Publish an app",
-      "href": "https://app.zenith.hosting/publish"
+      "label": "Get started",
+      "href": "/content/quickstart"
     }
   },
   "contextual": {

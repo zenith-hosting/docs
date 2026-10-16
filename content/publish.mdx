@@ -1,0 +1,163 @@
+---
+title: "Publish with zenith publish"
+sidebarTitle: "Publish your app"
+description: "Submit a public GitHub commit and marketplace listing for review, then track feedback and publish updates."
+---
+
+`zenith publish` submits your app for review. It pins a full commit from a public GitHub repository, prepares the app listing, and returns a submission receipt. Submission is not immediate marketplace publication.
+
+Unlike `zenith up`, publishing uses source from GitHub, not your local files. If your app uses `build: .`, Zenith builds the pinned commit before submission. You do not need to push an app image to GHCR. Apps that use public, pullable images can also be submitted.
+
+## Before you publish
+
+<Check>
+Confirm that:
+
+- You have [installed the CLI and signed in](/content/quickstart#install-and-sign-in).
+- Your GitHub repository is public and you have permission to publish the app.
+- You have connected a GitHub account to Zenith that can access the repository.
+- The commit is pushed to GitHub and contains a root `zenith-compose.yml`.
+- That commit contains a root `Dockerfile`, even when the manifest uses only prebuilt images. For a built app, include all required source files too.
+- Image-based services can be pulled without registry credentials.
+- You have accurate listing details and at least one real screenshot of the app.
+</Check>
+
+Test your app with [`zenith up`](/content/up) before publishing. The CLI warns if the publish commit differs from your last preview or if the preview included local changes. A preview is recommended, not required for submission. It does not prove that the separate GitHub build produces an identical image.
+
+## Submit from your terminal
+
+From the public repository's local checkout, run:
+
+```bash
+zenith publish
+```
+
+The CLI uses the GitHub `origin` remote and local `HEAD` by default. Commit and push the files you intend to submit before running it. Local changes that are not in the selected commit are not published.
+
+<Visibility for="humans">
+
+<Steps>
+  <Step title="Connect GitHub">
+    If you have not connected GitHub, open the [publishing dashboard](https://app.zenith.hosting/publish) and connect an account with access to the repository. This is separate from CLI sign-in.
+  </Step>
+  <Step title="Review the Developer Agreement">
+    The first submission for an app requires agreement acceptance. Review the agreement and confirm it when the CLI asks. An existing acceptance can be reused.
+  </Step>
+  <Step title="Prepare the listing">
+    Answer the CLI prompts for the app name, category, descriptions, maintainer contact, license, and screenshot paths. Supply accurate details and screenshots from the working app.
+  </Step>
+  <Step title="Wait for submission">
+    The CLI waits for any required publish build, then sends the app for review. Save the receipt, including the product ID, version, and pinned commit.
+  </Step>
+</Steps>
+
+</Visibility>
+
+To select a commit explicitly:
+
+```bash
+zenith publish --commit "$(git rev-parse HEAD)"
+```
+
+`--commit` requires a full `40`-character SHA that exists in the public GitHub repository. Use `--owner` and `--repo` to select a repository instead of inferring it from `origin`. `--project <dir>` selects the local project directory.
+
+If more than one connected GitHub account could apply, use `--github-account-id <id>` or set `ZENITH_GITHUB_ACCOUNT_ID`. A Zenith login alone does not connect GitHub.
+
+## Supply listing files
+
+Use `--metadata` to supply a JSON listing instead of answering listing prompts. Create `listing.json` with accurate app details:
+
+```json listing.json
+{
+  "productName": "Team Notes",
+  "category": "Productivity",
+  "description": "A shared notebook for small teams.",
+  "detail": "Create, organize, and search team notes in a browser.",
+  "maintainerName": "Team Notes maintainers",
+  "contactEmail": "maintainer@example.com",
+  "license": "MIT",
+  "website": "",
+  "supportUrl": "",
+  "alternatives": [],
+  "partnershipNotes": ""
+}
+```
+
+Replace the example identity, email, and license with your own. Use one of these categories: `Business`, `Communication`, `Developer tools`, `Finance`, `Media`, `Productivity`, `Project management`, or `Security`.
+
+The description should be at most `300` characters and the detail at most `1,000` characters. The CLI reading the JSON file does not mean the listing has passed server validation.
+
+Once the Developer Agreement has been accepted for the app, submit the listing with actual image files:
+
+```bash
+zenith publish \
+  --commit "$(git rev-parse HEAD)" \
+  --metadata listing.json \
+  --icon assets/icon.png \
+  --screenshot screenshots/home.png
+```
+
+- Metadata, icon, and screenshot paths resolve from `--project`, which defaults to the current directory.
+- Icons and screenshots must be non-empty JPEG, PNG, or WebP files, no larger than `2 MiB` each.
+- Repeat `--screenshot` for multiple images. These replace the saved screenshots; the first becomes the cover.
+- Omit `--icon` to retain the icon in the metadata or saved listing.
+- An existing saved listing can supply screenshots when you do not pass replacements. A first submission needs at least one.
+
+The first submission still requires agreement acceptance. `--accept-agreement` records that acceptance without a prompt. Use it only after reviewing the agreement and with authority to accept it. It is not a way to bypass authorization.
+
+## Track review and make updates
+
+```bash
+zenith publish status
+```
+
+Run this from the repository checkout to see its submission status, receipt, pinned commit, and any review feedback. If no matching repository is found, the CLI lists your submissions.
+
+| Command | When to use it |
+| --- | --- |
+| `zenith publish resubmit` | Respond to a submission marked changes requested, rejected, or withdrawn. |
+| `zenith publish update-code` | Submit a new commit after the previous submission has been merged. The commit must differ from the last pinned commit. |
+| `zenith publish update-listing` | Change listing details while retaining the previous pinned commit. |
+
+These commands accept the same listing and asset flags as `publish`. Pass `--metadata` for a non-interactive listing update. You cannot revise a submission that is already in review.
+
+A Git push alone does not update a submission or a running deployment. Use the appropriate publishing command and check its result.
+
+<Visibility for="humans">
+
+You can also view feedback in the [publishing dashboard](https://app.zenith.hosting/publish). `zenith publish open` prints that dashboard URL.
+
+</Visibility>
+
+## Handle a failed submission
+
+- **Sign-in or GitHub connection required:** complete the missing authorization, then retry.
+- **Commit or manifest not found:** push the selected commit and confirm that `zenith-compose.yml` is at its root.
+- **Build failed:** fix the Dockerfile or source, push a new commit, and submit that commit. Do not assume an earlier local preview tested the same files.
+- **Listing validation failed:** correct the reported fields or image files before retrying.
+- **Already in review:** check `zenith publish status` and wait for a state that allows revision.
+
+If a command is interrupted after submission may have started, check status before sending another version. Keep the receipt and pinned commit as evidence of what was submitted.
+
+<Visibility for="agents">
+
+## Agent publishing workflow
+
+Use `NO_COLOR=1` for agent-readable output and run without a TTY. Supply metadata and screenshots explicitly so listing prompts are not needed. After authorized sign-in, GitHub connection, and agreement acceptance:
+
+```bash
+export NO_COLOR=1
+zenith publish \
+  --commit "$(git rev-parse HEAD)" \
+  --metadata listing.json \
+  --screenshot screenshots/home.png </dev/null
+zenith publish status </dev/null
+```
+
+`NO_COLOR=1` controls output only. It does not supply missing metadata, suppress all prompts, or approve the agreement. If acceptance is missing, stop and have the authorized user review it. Use `--accept-agreement` only when that review and explicit authorization have occurred. Use `--github-account-id` if account selection is ambiguous.
+
+Before submitting, verify that the selected commit is pushed, the repository is public, the listing is accurate, and the screenshot shows the real app. Do not fabricate screenshots or attest to publication rights. Do not submit without the user's explicit authorization.
+
+Record the exact command, repository, full SHA, tested preview and any differences, receipt product ID, submission version, and review status. Report remaining errors rather than treating a completed build as a successful submission. Do not claim the app is published until its status confirms publication.
+
+</Visibility>

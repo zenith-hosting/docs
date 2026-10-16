@@ -1,60 +1,113 @@
 ---
-title: "Publish an app"
+title: "Get started with the CLI"
 sidebarTitle: "Quickstart"
-description: "Prepare your app, describe how Zenith should run it, and submit it for review."
+description: "Install the Zenith CLI, prepare your app, and launch your first temporary deployment."
 ---
 
-To publish an app, put a `Dockerfile` and `zenith-compose.yml` at the root of a public GitHub repository. Zenith can build your app image before submission, or you can supply a public image.
+Use the [Zenith CLI](https://github.com/zenith-hosting/zenith-cli) to prepare your app, test it on Zenith, and submit it for publication.
+
+You need Node.js `20.10` or later and npm. Sign in to a Zenith account before launching a deployment. You do not need a public GitHub repository to test a local project. Publishing requires one.
+
+## Install and sign in
+
+```bash
+npm install -g @zenith-hosting/cli
+zenith --version
+zenith auth login
+```
 
 <Visibility for="humans">
 
-<Card title="Let an agent prepare the repository" icon="wand-magic-sparkles" href="/content/agent-skill" cta="Install the Zenith skill" arrow="true">
-  The Zenith skill can prepare the container image and `zenith-compose.yml` pull requests for you.
-</Card>
-
-Follow these steps in order.
-
-<Steps>
-  <Step title="Containerise your app">
-    Prepare a root `Dockerfile`. Choose whether Zenith builds your app image or you use a public image. Any other services need public images.
-
-    [Prepare your container images](/content/containerise)
-  </Step>
-  <Step title="Create zenith-compose.yml">
-    Add the services, public endpoints, environment values, and persistent storage that your app needs.
-
-    [Create the manifest](/content/zenith-compose)
-  </Step>
-  <Step title="Submit your app">
-    Connect the repository to Zenith, build the marketplace listing, and send the app for review.
-
-    [Submit the repository](/content/submit)
-  </Step>
-</Steps>
+The login command opens your browser. Sign in and approve CLI access, then return to your terminal.
 
 </Visibility>
+
+To print the sign-in URL instead of opening a browser:
+
+```bash
+zenith auth login --no-browser
+```
+
+Browser approval is still required. The browser must reach the CLI's loopback callback on the same machine. For a remote terminal, forward the callback to that machine. `--no-browser` is not a token-based or unattended login.
+
+## Prepare your project
+
+From your app's root directory, run:
+
+```bash
+zenith init
+```
+
+In an existing project, `init` detects the framework and adds missing Zenith files. It keeps your source and existing `Dockerfile` and Compose files. Review the generated files against your app's real start command, port, dependencies, and data paths.
+
+In an empty directory, `init` offers a framework picker. You can select a starter explicitly:
+
+```bash
+mkdir my-app
+cd my-app
+zenith init --template node
+```
+
+Available starters are `node`, `express`, `nextjs`, `vite-react`, `python` (FastAPI), `flask`, `django`, `go`, and `static`. Use `--project <dir>` to work in another directory.
+
+<Warning>
+`zenith init --force` replaces generated `Dockerfile` and `zenith-compose.yml` files. Leave it off when adapting an existing app.
+</Warning>
+
+Read the [container guide](/content/containerise) and [Compose guide](/content/zenith-compose) when you need to change the generated files.
+
+## Check and test
+
+```bash
+zenith check --upload-size
+zenith up
+```
+
+`init` and `check` work offline. `check` validates the preview policy and local environment file. `--upload-size` also checks archive size. It does not build or run your app.
+
+`up` uploads your local project, builds it on Zenith, and prints a temporary URL when it is ready. You do not need to build or push a container image yourself. Test the app at that URL, then stop it:
+
+```bash
+zenith logs --source runtime
+zenith down
+```
+
+See [temporary deployments](/content/up) for lifetime, upload limits, secrets, logs, and troubleshooting.
+
+## Publish when ready
+
+Commit and push your app to a public GitHub repository. Include a root `Dockerfile` and `zenith-compose.yml`, even if you use prebuilt images. Then start the publishing flow:
+
+```bash
+zenith publish
+zenith publish status
+```
+
+Publishing submits a pinned commit for review. It does not make the app available in the marketplace immediately. See [Publish your app](/content/publish) for authorization, listing files, screenshots, and updates.
 
 <Visibility for="agents">
 
-> Agent workflow
->
-> Prepare a repository for Zenith in this order:
->
-> 1. Prepare a root `Dockerfile`. Use a public `image` for each service, or `build: .` for one app service that Zenith will build before submission.
-> 2. Create or validate the root `zenith-compose.yml` using the [manifest guide](/content/zenith-compose) and [complete reference](/content/zenith-compose-reference).
-> 3. Run the local Compose checks documented on those pages.
-> 4. Stop before account connection, publication consent, or final submission. Those actions require the repository owner in the [publishing dashboard](/content/submit).
->
-> Preserve existing application behavior. Do not add `internal.yml`, pricing, Kubernetes placement, or any other operator-only field to the developer repository.
+## Run a non-interactive agent session
+
+Set `NO_COLOR=1` for plain, agent-readable progress instead of animated output. Run commands without a TTY and supply any required inputs explicitly:
+
+```bash
+export NO_COLOR=1
+zenith init --template node </dev/null
+zenith check --upload-size </dev/null
+zenith up </dev/null
+zenith logs --source runtime </dev/null
+zenith down </dev/null
+```
+
+Choose the template that matches the app; `node` is only an example. Do not overwrite existing app behavior to fit a starter.
+
+`NO_COLOR=1` controls output. It does not disable every prompt or approve external actions. Omit `--verbose` and do not set `ZENITH_VERBOSE=1`, which enables animated output. Use explicit `--template` and publishing inputs instead of relying on terminal prompts.
+
+Reuse authorized CLI credentials. If login is needed, use `NO_COLOR=1 zenith auth login --no-browser` and hand the URL to the user. Do not copy browser cookies or try to bypass OAuth, GitHub connection, or the Developer Agreement.
+
+Before `up`, confirm that uploading the project and creating a temporary deployment are within the user's request. Review archive inputs and keep secrets out of source and image layers. Do not push commits, publish images, change registry visibility, or submit an app without explicit authorization.
+
+After testing, report the session ID, URL, expiry, commands run, app flows verified, and cleanup result. Record the tested commit and any local changes. A ready URL alone does not prove that the app works. Follow the [publishing agent workflow](/content/publish#agent-publishing-workflow) only when submission is authorized.
 
 </Visibility>
-
-## Before you start
-
-<Info>
-You need all of the following before you begin:
-
-- A public GitHub repository that you own or administer.
-- Permission to publish and maintain the app.
-- Docker installed for local builds and tests.
-</Info>
