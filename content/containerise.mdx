@@ -1,92 +1,110 @@
 ---
-title: "Containerise your app"
-description: "Prepare your app's Dockerfile and choose how to provide its container image."
+title: "Prepare your container"
+description: "Prepare a Dockerfile for CLI builds or use public container images for your app and its dependencies."
 ---
 
-Start with a `Dockerfile` at the repository root. Zenith can build your app image before submission, or you can use a public image. Any other services need public images.
+The CLI can build your app on Zenith. You do not need to publish an image to a registry before using `zenith up` or publishing an app with `build: .`.
+
+| Workflow | Build source |
+| --- | --- |
+| `zenith up` | Your uploaded local project. Requires one app with `build: .` and a root `Dockerfile`. |
+| `zenith publish` with `build: .` | The pinned commit in your public GitHub repository. Zenith builds the image before submitting it for review. |
+| Publishing an app with `image` | An existing image that Zenith can pull without registry credentials. |
 
 <Info>
-    Zenith currently requires a root `Dockerfile` when you submit, even if `zenith-compose.yml` uses only prebuilt images. It will not rebuild those images. If you already have a Dockerfile, continue to [creating `zenith-compose.yml`](/content/zenith-compose).
+Zenith currently requires a root `Dockerfile` when you submit, even if `zenith-compose.yml` uses only prebuilt images. It does not rebuild those images.
 </Info>
 
-<Visibility for="agents">
+Image-based dependencies, such as Postgres or Redis, must also be publicly pullable. A successful local preview does not prove that the separately built publish image is identical.
 
-> Agent task
->
-> Prepare a root `Dockerfile`. Use `build: .` for one app service that Zenith will build, or set its `image` to a public image. Other services need public images. Check that every declared `image` can be pulled without signing in.
->
-> Do not publish an image, change package visibility, or push commits unless the user explicitly authorizes those external actions. Check that each image starts the production process, works without host-mounted repository files, exposes its expected port, and uses the expected persistent-data paths.
+## Prepare a Dockerfile
 
-</Visibility>
+From your app's root directory, run:
 
-## 1. Prepare a Dockerfile
+```bash
+zenith init
+```
 
-If you have a production Dockerfile, use that. Otherwise, follow Docker's guide for your language or framework.
+The CLI adds missing files for a detected or selected framework. It preserves an existing `Dockerfile` and `zenith-compose.yml` unless you use `--force`. Reuse your production Dockerfile where possible. Review the generated start command, port, build steps, and runtime dependencies.
+
+<Visibility for="humans">
 
 <Columns cols={2}>
-  <Card title="Build and share an image" icon="cube" href="https://docs.docker.com/get-started/tutorials/run-an-app/">
-    Follow Docker's introductory build, run, and publish tutorial.
+  <Card title="Install the CLI" icon="terminal" href="/content/quickstart">
+    Set up the CLI and choose a framework starter.
   </Card>
-  <Card title="Choose a framework guide" icon="code" href="https://docs.docker.com/guides/">
-    Find Docker's containerisation guide for Node.js, Python, Go, Java, and other stacks.
+  <Card title="Docker framework guides" icon="code" href="https://docs.docker.com/guides/">
+    Adapt the container build to your language and framework.
   </Card>
 </Columns>
 
-### Check the runtime
+</Visibility>
 
-To be compatible with the Zenith platform, each container must:
+## Check the runtime
 
-- Support `linux/amd64` architecture
-- Read deployment-specific values and secrets from environment variables; use [inline Compose configs](/content/zenith-compose#add-static-configuration) for static, non-secret files
-- Write logs to `stdout` and `stderr`
-- Listen on `0.0.0.0`, not `localhost`
-- Store any persistent data in a documented directory
-- Start using only the container image, declared environment variables, config files, and volumes
+Each container must:
+
+- Support `linux/amd64`.
+- Listen on `0.0.0.0`, not `localhost`.
+- Write logs to `stdout` and `stderr`.
+- Start without host-mounted source files.
+- Read deployment-specific values and secrets from environment variables.
+- Store persistent data in declared volumes.
+
+Use [inline Compose configs](/content/zenith-compose#add-static-configuration) for static, non-secret files. Record the app's listening port, health endpoint, required variables, and data paths in `zenith-compose.yml`.
 
 <Warning>
-Do not copy `.env` files, private keys, registry credentials, or other secrets into the image. Secrets MUST only be supplied via environment variables.
+Do not copy `.env` files, private keys, or registry credentials into an image. Use a gitignored `.env.local` for [preview secrets](/content/up#supply-test-secrets) and `x-zenith.env` for [deployment variables](/content/zenith-compose#add-deployment-variables).
 </Warning>
 
-## 2. Choose an image source
+For a Zenith-built app, set `build: .` on one service and do not also set `image`. Other services need public `image` references. Zenith builds before submission, not during deployment.
 
-Choose one option for your app service:
+## Test the build on Zenith
 
-- **Let Zenith build it:** Set `build: .` in `zenith-compose.yml`. Zenith builds the root `Dockerfile` before submission. Do not also set `image` on that service.
-- **Use a public image:** Set `image` to an image anyone can pull, whether you publish it or its maintainers do. GHCR and Docker Hub are options.
+```bash
+zenith check --upload-size
+zenith up
+zenith logs --source build
+zenith logs --source runtime
+```
 
-Other services need public `image` references. Zenith does not build images when it deploys an app.
+`check` validates preview policy; it does not build the image. `up` builds the root `Dockerfile` using the uploaded project. Preview builds do not support alternate Dockerfiles, build arguments, build targets, remote contexts, or bind mounts. See [temporary deployments](/content/up) for the complete workflow.
 
-If you publish an image yourself, these guides can help:
+After testing, run:
+
+```bash
+zenith down
+```
+
+## Use an existing image
+
+For image-based publishing or dependency services, set `image` to an anonymously pullable tag or digest. Pin a version rather than relying on a moving `latest` tag. An image-only app can be published, but it does not meet the preview requirement for one built app service.
+
+If you maintain the image yourself, publish it to a registry that permits anonymous pulls. Verify its visibility before submitting the app.
+
+<Visibility for="humans">
 
 <Columns cols={2}>
   <Card title="Publish to GHCR" icon="github" href="https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images#publishing-images-to-github-packages">
-    Use GitHub Actions to build and publish an image to `ghcr.io`.
+    Build and publish an image with GitHub Actions.
   </Card>
   <Card title="Publish to Docker Hub" icon="docker" href="https://docs.docker.com/docker-hub/repos/manage/hub-images/push/">
     Tag and push an image to a public Docker Hub repository.
   </Card>
 </Columns>
 
+</Visibility>
+
 <Warning>
-New GHCR packages are private by default. Before continuing, follow GitHub's [package visibility guide](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility) to make the image public. GitHub warns that a public package cannot be made private again.
+New GHCR packages are private by default. Check GitHub's [package visibility rules](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility) before making an image public. Public packages cannot be made private again.
 </Warning>
 
-## 3. Record what Zenith needs
-
 <Check>
-    Before continuing, make sure every declared `image` is publicly pullable. If you use `build: .`, check that your `Dockerfile` builds locally. Note each service's listening port, health endpoint, required environment variables, and persistent-data paths.
+The container is ready when it starts without host files, answers on its declared port, and uses the expected environment variables and data paths. Every image-based service must be pullable without registry credentials.
 </Check>
-
-<Visibility for="humans">
-
-  <Card title="Next: create zenith-compose.yml" icon="file-code" href="/content/zenith-compose">
-    Describe the metadata, configuration, services and storage for your app.
-  </Card>
-
-</Visibility>
 
 <Visibility for="agents">
 
-> Next action: create or update the root [`zenith-compose.yml`](/content/zenith-compose). Carry forward the exact image references, listening ports, health checks, environment requirements, and persistent-data paths established here.
+> Inspect the existing production build before generating a Dockerfile. Preserve app behavior. Use `NO_COLOR=1 zenith check --upload-size` for local validation and, when upload is authorized, `NO_COLOR=1 zenith up` for a live test. Do not add a registry publishing workflow when Zenith can build the app from `build: .`. Do not push commits, publish images, or change registry visibility without explicit authorization. Carry verified ports, environment requirements, and data paths into the [Compose guide](/content/zenith-compose).
 
 </Visibility>

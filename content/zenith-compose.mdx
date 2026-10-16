@@ -1,19 +1,15 @@
 ---
 title: "Create a zenith-compose.yml"
-description: "Describe your app's metadata, services, environment values, static config files, and storage."
+description: "Prepare your app's Compose file with the CLI, test a temporary preview, and publish a pinned GitHub commit."
 ---
 
 `zenith-compose.yml` is a Compose Specification file with a required top-level `x-zenith` block for Zenith listing and deployment metadata.
 
-Every service needs a container image. You can use a public image or let Zenith build one app image before submission. [Prepare your containers first](/content/containerise).
-
-<Visibility for="humans">
+Start with `zenith init`, check your project with `zenith check`, and use `zenith up` for temporary testing. When you are ready to submit for review, `zenith publish` can build your app from a pinned public GitHub commit. You do not need to publish your own app image first.
 
 <Info>
-This page covers the fields most apps need. Use the [complete `zenith-compose.yml` reference](/content/zenith-compose-reference) for every field, default, validation rule, and runtime behavior.
+This page covers the fields most apps need. Use the [complete `zenith-compose.yml` reference](/content/zenith-compose-reference) for the shared schema and published runtime behavior. The [preview policy](/content/zenith-compose-reference#preview-policy) is stricter; not every field on this page works with `zenith check` or `zenith up`.
 </Info>
-
-</Visibility>
 
 <Visibility for="agents">
 
@@ -21,15 +17,40 @@ This page covers the fields most apps need. Use the [complete `zenith-compose.ym
 >
 > Create or review `zenith-compose.yml` at the repository root. Start from the app's working Compose model and add the required `x-zenith` fields documented here. Consult the [complete reference](/content/zenith-compose-reference) before introducing a field that is not in the example.
 >
-> Preserve service names, internal hostnames, commands, health checks, and volume targets unless the app needs a change. Use the supported Compose fields in the [reference](/content/zenith-compose-reference#compose-compatibility).
+> Preserve service names, internal hostnames, commands, health checks, and volume targets unless the app needs a change. Use the supported Compose fields in the [reference](/content/zenith-compose-reference#compose-compatibility). Do not treat published runtime support as preview support.
+>
+> Set `NO_COLOR=1` for agent command runs, for example `NO_COLOR=1 zenith check --upload-size`. This selects plain output; it does not authorize uploads or publishing. Do not use verbose output overrides when you need plain output.
 
 </Visibility>
 
+## Start with the CLI
+
+Install and sign in using the [quickstart](/content/quickstart), then work from your project root.
+
+<Steps>
+  <Step title="Initialize the project">
+    Run `zenith init` to add missing Zenith files. Inspect the generated Dockerfile, command, port, and Compose services. Keep your existing app behavior.
+  </Step>
+  <Step title="Check preview compatibility">
+    Run `zenith check --upload-size`. This checks the local preview policy and estimates the upload size. It works offline; it is not a general validator for every published runtime feature.
+  </Step>
+  <Step title="Test a temporary preview">
+    Run `zenith up` to upload the project and build a temporary preview. Check the app at the returned URL, inspect `zenith logs`, and run `zenith down` when finished. A preview is temporary testing, not catalogue publication. See [temporary previews](/content/up).
+  </Step>
+  <Step title="Publish a pinned commit">
+    Commit and push the manifest, Dockerfile, and app source to a public GitHub repository. With publishing authorization in place, run `zenith publish` to submit a pinned commit for review. See [publishing](#publish-the-file).
+  </Step>
+</Steps>
+
+For previews, define exactly one app service with `build: .` and a project-root `Dockerfile`, plus up to four dependencies using public images. Expose the built HTTP app through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile must `EXPOSE` that port.
+
+Do not add an `image` alongside `build` on the preview app. Preview policy rejects alternate Dockerfiles, remote build contexts, build arguments, targets, platforms, and resource/deploy overrides. It also rejects `x-zenith.env` and `x-zenith.storage`; named Compose volumes remain supported. See the [preview policy](/content/zenith-compose-reference#preview-policy) before adapting published examples.
+
 ## Create the file
 
-Add `zenith-compose.yml` to the root of your app's repository. If you already have one, start from the Compose file you use to run the app.
+Keep `zenith-compose.yml` at the root of your app's repository. If you already have a working Compose file, use it to guide the service definitions.
 
-This example packages PrivateBin with one public service and one persistent volume:
+The remaining examples describe the shared schema and published runtime. This image-based example packages PrivateBin with one public service and one persistent volume. It is not a `zenith up` project as written:
 
 ```yaml zenith-compose.yml
 x-zenith:
@@ -301,7 +322,7 @@ Then run the app:
 docker compose -f zenith-compose.yml up -d
 ```
 
-These commands test the Compose model and the app. Zenith runs the `x-zenith`-specific validation during submission.
+These optional Docker Compose commands test the Compose model and the app locally. They do not reproduce Zenith's environment resolution or replace `zenith check` and `zenith up` for preview-compatible projects. Image-only published manifests can be valid even when they fail the stricter preview check. Zenith validates the published app again during submission.
 
 <Check>
 Continue when Compose parses the file without errors, every service stays running, and each exposed service answers on its declared port.
@@ -309,7 +330,7 @@ Continue when Compose parses the file without errors, every service stays runnin
 
 ## Zenith runtime restrictions
 
-Docker Compose accepts some settings that Zenith does not. Remove these before you submit:
+Docker Compose accepts some settings that Zenith does not. Remove the unsupported settings listed below before you submit. Temporary previews have [additional restrictions](/content/zenith-compose-reference#preview-policy).
 
 <Warning>
 - Bind mounts.
@@ -322,19 +343,32 @@ Docker Compose accepts some settings that Zenith does not. Remove these before y
 
 </Warning>
 
-To let Zenith build your app image, use `build: .` for one service and keep a `Dockerfile` at the repository root. Give every other service a public `image`. See [container requirements](/content/containerise) for both options.
+To let Zenith build your app image from the pinned public GitHub commit, use `build: .` for one service and keep a `Dockerfile` at the repository root. Give every other service a public `image`. See [container requirements](/content/containerise) for both options.
 
 Avoid `cap_add` unless your app needs a specific Linux capability. Some capabilities weaken isolation or may be rejected by the cluster. Other Compose fields may parse without working on Zenith; use the [supported fields](/content/zenith-compose-reference#service-fields).
 
-## Commit the file
+## Publish the file
 
-Commit `zenith-compose.yml` at the repository root on the default branch. The file must be non-empty and no larger than `128 KiB`.
+Commit and push `zenith-compose.yml` at the repository root of a public GitHub repository. The file must be non-empty and no larger than `128 KiB`. Include a root `Dockerfile` even for image-only manifests. For `build: .`, include the required app source too.
+
+`zenith publish` selects local `HEAD` by default, or you can supply a full 40-character SHA with `--commit`. The selected commit must be available on GitHub; it is not required to be the current default-branch commit.
+
+After sign-in, GitHub connection, Developer Agreement acceptance, and explicit authorization to submit, run:
+
+```bash
+zenith publish --commit "$(git rev-parse HEAD)"
+zenith publish status
+```
+
+Zenith builds the pinned GitHub commit when the manifest uses `build: .`. The CLI waits for that build before submitting for review. A manifest using pullable images can still be published without this build. A local preview does not prove the published image is identical: publishing uses GitHub, not the preview upload.
+
+Submission enters review, not immediate publication. Later Git pushes do not automatically update the submission or an existing deployment. See [publish your app](/content/publish) for listing metadata, screenshots, and revision commands.
 
 <Visibility for="humans">
 
 <Columns cols={2}>
-  <Card title="Next: submit your app" icon="arrow-right" href="/content/submit">
-    Connect the repository to Zenith and send it for review.
+  <Card title="Next: publish your app" icon="arrow-right" href="/content/publish">
+    Submit a pinned public GitHub commit for review with the CLI.
   </Card>
 
   <Card title="Complete reference" icon="book-open" href="/content/zenith-compose-reference">
@@ -349,12 +383,14 @@ Commit `zenith-compose.yml` at the repository root on the default branch. The fi
 > Completion checks
 >
 > - `zenith-compose.yml` is at the repository root and is no larger than `128 KiB`.
-> - `docker compose -f zenith-compose.yml config` succeeds.
-> - The app starts locally and its exposed ports, health checks, environment values, and persistent paths behave as declared.
+> - For a preview-compatible project, `NO_COLOR=1 zenith check --upload-size` succeeds. After an authorized `NO_COLOR=1 zenith up`, verify the temporary URL and inspect logs.
+> - Record any optional Docker Compose checks separately. Verify exposed ports, health checks, environment values, and persistent paths for the target you actually tested.
 > - Every `x-zenith` field matches the schema, and every required catalogue and endpoint field is present.
 > - Static non-secret files use inline Compose `configs` rather than a wrapper that only writes fixed content. Each config target is distinct and read-only.
 > - Every service has a public `image`, except one app service using `build: .` with a root `Dockerfile`. No unsupported file mount or config ownership override remains.
 >
-> Check both schema validity and [Zenith runtime restrictions](#zenith-runtime-restrictions); schema acceptance alone is not deployment support. After these checks, report the exact commands run and any unverified assumption. Leave GitHub connection, publication consent, and final submission to the repository owner through the [submission flow](/content/submit).
+> Check both schema validity and the policy for the intended target; schema acceptance alone is not deployment support. Report the exact commands run, the tested revision, and any unverified assumption.
+>
+> Publishing is an external action. Do not push commits, publish images, connect accounts, accept the Developer Agreement, or submit with `zenith publish` without explicit user authorization for that action. Once authorized and account prerequisites are complete, use `NO_COLOR=1 zenith publish` with the flags documented in the [publishing guide](/content/publish). Do not infer consent from a successful preview or existing credentials.
 
 </Visibility>

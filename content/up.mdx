@@ -1,0 +1,133 @@
+---
+title: "Test with zenith up"
+sidebarTitle: "Temporary deployments"
+description: "Build your local app on Zenith, test it at a temporary URL, inspect logs, and stop the deployment."
+---
+
+`zenith up` uploads your local project and launches a temporary deployment for testing. It builds your app on Zenith and returns a public URL. It does not submit your app for publication or create a subscription.
+
+[Install the CLI and sign in](/content/quickstart#install-and-sign-in) first. Run the commands below from your app's root directory.
+
+## Prepare the app
+
+```bash
+zenith init
+zenith check --upload-size
+```
+
+Review your root `Dockerfile` and `zenith-compose.yml`. The preview policy supports:
+
+- Exactly one app service built with `build: .` and the root `Dockerfile`. Do not also set `image` on this service.
+- Up to four additional services using public container images.
+- An HTTP app listening on `0.0.0.0`, exposed through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile must `EXPOSE` that port.
+- Named volumes and dependencies declared with `depends_on`.
+
+Expose only the built app publicly. Bind mounts, custom networks, `env_file`, host environment inheritance, remote build contexts, alternate Dockerfiles, build arguments, build targets, and resource or deployment overrides are not supported in previews.
+
+Preview policy also rejects Compose interpolation and the `x-zenith.env`, `x-zenith.storage`, and `x-zenith.configs` blocks. Use literal Compose values, named volumes, and `.env.local` for preview configuration.
+
+The [Compose reference](/content/zenith-compose-reference) describes the wider published-app contract. A field in that reference is not necessarily supported by the stricter preview policy. Use `zenith check` to check preview compatibility. Zenith validates the project again after upload.
+
+## Supply test secrets
+
+Put local test secrets in a gitignored `.env.local` at the project root. Do not put them in the Compose file, Dockerfile, or committed source.
+
+```dotenv .env.local
+API_TOKEN=replace-with-a-test-token
+```
+
+`zenith check` validates this file separately. `zenith up` sends its values separately from the source archive. The file must be valid UTF-8 and can contain up to `64` variables and `32 KiB` of data. Reserved variable names are rejected. Other `.env` files are excluded from the upload and are not loaded as test secrets.
+
+<Warning>
+Use test credentials and test data. The deployment has a public URL. Do not assume that an unshared URL makes the app private.
+</Warning>
+
+## Launch a temporary deployment
+
+```bash
+zenith up
+```
+
+The CLI checks your project, uploads it, waits for the build, and prints the URL, session ID, and teardown time when the app is ready. The upload uses your local files, including eligible uncommitted changes. It does not require a public repository or a Git push.
+
+The queue estimate describes when the build may start, not when the URL will be ready.
+
+<Visibility for="humans">
+
+Open the returned URL. Test the app's main flows, including sign-in, writes, and any background work it needs.
+
+</Visibility>
+
+### Lifetime and replacement
+
+A preview lasts `20 minutes` from readiness by default. The service can limit that lifetime; use the teardown time printed by the CLI. Queue and build time do not consume the ready lifetime. Treat preview data as temporary.
+
+Each account has one live preview. A new preview of the same repository replaces the old one only after the new one is ready. To replace a preview from another repository, pass its session ID explicitly:
+
+```bash
+zenith up --replace-preview <session-id>
+```
+
+Closing the CLI cancels a queued preview. A build that has already started continues. A ready preview stays live until expiry or `zenith down`.
+
+### Upload limits
+
+Uploads are limited to `100 MiB` compressed and `200 MiB` of expanded files. File selection combines `.gitignore` and `.dockerignore`. The root Dockerfile, Compose file, and `.dockerignore` are retained. Git metadata, `node_modules`, private-key patterns, and `.env` files are excluded.
+
+Review your project before uploading. Ignore rules are not a substitute for checking that source files contain no secrets.
+
+## Inspect logs and failures
+
+```bash
+zenith logs --source build
+zenith logs --source runtime
+zenith logs --source runtime --follow
+```
+
+Without a session ID, `logs` uses the last session for the current project and Zenith address. The default source is `all`; the default runtime tail is `200` lines. Pass a session ID to inspect a specific deployment:
+
+```bash
+zenith logs <session-id> --source build --follow
+```
+
+If validation fails, fix the reported Dockerfile, Compose, environment, or archive issue before retrying. If the app fails to become ready, inspect build and runtime logs. Confirm that its process stays running and listens on the declared port at `0.0.0.0`.
+
+`up` stops waiting after `300` seconds without new build output by default. To allow a longer idle period:
+
+```bash
+zenith up --wait-timeout 600
+```
+
+This changes the CLI wait, not the deployment lifetime. A timeout does not stop a build that has already started. Use the printed session ID to inspect logs or request cleanup.
+
+## Stop the deployment
+
+```bash
+zenith down
+```
+
+Without a session ID, `down` selects the last session for the current project. To stop a specific session:
+
+```bash
+zenith down <session-id>
+```
+
+Cleanup runs in the background. If cleanup fails, repeat `zenith down` with the same session ID.
+
+<Check>
+Testing is complete when the app's required flows work at the returned URL, you have checked the runtime logs, and you have requested cleanup or recorded the expiry time. Keep the tested commit and any local changes in your test notes.
+</Check>
+
+<Visibility for="humans">
+
+<Card title="Next: publish your app" icon="arrow-right" href="/content/publish">
+  Submit a public GitHub commit and marketplace listing for review.
+</Card>
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Run `NO_COLOR=1 zenith check --upload-size`, then `NO_COLOR=1 zenith up` in a non-TTY session. Use `NO_COLOR=1 zenith logs --source runtime` for a bounded log read; `--follow` runs until interrupted. Exercise the returned URL rather than treating readiness as a complete test. Record the session ID, tested commit, local changes, expiry, and verification results. Run `NO_COLOR=1 zenith down <session-id>` when testing is complete. Replacing another project's preview must be within the user's authorization.
+
+</Visibility>
