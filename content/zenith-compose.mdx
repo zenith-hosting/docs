@@ -133,10 +133,6 @@ Each entry has these fields:
 
 ### Add forward authentication
 
-<Warning>
-Forward authentication is not available yet. It depends on [Zenith PR #892](https://github.com/zenith-hosting/zenith/pull/892) and its deployment. Do not rely on this property to protect an app until Zenith confirms support.
-</Warning>
-
 For an app that has no authentication of its own, the proposed `forward_auth` option adds a Zenith sign-in check before requests reach an exposed HTTP endpoint. Set it on the individual `expose` entry, not on `x-zenith` or the Compose service:
 
 ```yaml
