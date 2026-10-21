@@ -1,0 +1,155 @@
+---
+title: "Expose configuration files"
+description: "Let app owners edit specific configuration files in Zenith and apply changes with a restart."
+---
+
+Declare files under `x-zenith.configs` to make them editable in Zenith. App owners get a code editor with syntax highlighting and line numbers. Applying a change saves the file and requests an app restart.
+
+You need a writable file in a persistent named volume. Your app must create the file before the owner opens the editor.
+
+## Declare the file
+
+Each configuration entry points to an `x-zenith.storage` ID and a path inside that volume:
+
+```yaml
+x-zenith:
+  storage:
+    settings:
+      volume: app_settings
+      label: App settings
+  configs:
+    - storage: settings
+      path: /app.ini
+      label: App configuration
+      description: Settings read when the app starts.
+      type: ini
+```
+
+This excerpt supplements your app's service, volume, catalogue, and endpoint declarations. See the [complete example below](#example-copyparty).
+
+`storage: settings` references the storage ID, not the Compose volume name or a service name. `path` starts at the volume root. If you mount `app_settings` at `/etc/app`, the editor's `/app.ini` is `/etc/app/app.ini` inside the container.
+
+Keep the storage private by omitting `public` or setting it to `false`. Declaring a configuration file gives access to that file without making the rest of the volume browsable. Set `public: true` only when the owner should also have file-manager access to the entire volume.
+
+## Create the file once
+
+The declaration exposes an existing file. It does not create the file or generate its contents.
+
+Use your app's initialization process to create a default configuration in the named volume. If you supply a default through standard Compose `configs`, mount it at a separate seed path and copy it into the volume only when the editable file is missing.
+
+<Warning>
+Do not overwrite the editable file on every startup. Applying changes restarts the app, so an unconditional copy would erase the owner's saved changes.
+</Warning>
+
+Standard Compose `configs.<name>.content` creates a read-only mount. `x-zenith.configs` exposes a writable file in persistent storage. Keep the seed mount and editable file at different paths.
+
+## Example: Copyparty
+
+This manifest seeds `/cfg/copyparty.conf` once, exposes it in the configuration editor, and keeps uploaded files in a separate volume. The administrator password comes from a generated environment value, outside the editable file.
+
+```yaml zenith-compose.yml
+services:
+  copyparty:
+    image: copyparty/ac:1.20.26@sha256:b2054d65e05daa8982ca17c26b12b74315c0ce586a03ff9018a59c80731b9e19
+    entrypoint: [/bin/ash, -ec]
+    command:
+      - |
+        if [ ! -e /cfg/copyparty.conf ]; then
+          cp /bootstrap/copyparty.conf /cfg/copyparty.conf
+        fi
+        exec /bin/ash /z/cpp.sh -c /z/initcfg --rproxy=-1 --xff-src=lan -a "admin:$$COPYPARTY_PASSWORD"
+    configs:
+      - source: copyparty-seed
+        target: /bootstrap/copyparty.conf
+    volumes:
+      - settings:/cfg
+      - files:/w
+
+configs:
+  copyparty-seed:
+    content: |
+      # Invalid configuration can prevent the app from starting.
+      # Zenith requires the proxy startup options for HTTPS login and uploads.
+      [global]
+        name: Copyparty
+        no-robots
+
+      [/]
+        /w
+        accs:
+          rwmda: admin
+
+volumes:
+  settings:
+  files:
+
+x-zenith:
+  catalog:
+    name: Copyparty
+  expose:
+    - service: copyparty
+      port: 3923
+      web: true
+  env:
+    COPYPARTY_PASSWORD:
+      generate: '[A-Za-z0-9]{32}'
+      input:
+        label: Administrator password
+        description: Sign in as admin with this password.
+        secret: true
+        required: true
+      services: [copyparty]
+  storage:
+    settings:
+      volume: settings
+      label: Copyparty settings
+      default_size: 1Gi
+    files:
+      volume: files
+      label: Files
+      default_size: 10Gi
+      public: true
+  configs:
+    - storage: settings
+      path: /copyparty.conf
+      label: Copyparty configuration
+      description: Settings read when Copyparty restarts.
+      type: ini
+```
+
+The `$$` keeps Compose from expanding the password reference before the container starts. Copyparty's required proxy settings stay in the startup command so edits to the configuration file cannot override them. Changing or removing those startup options breaks HTTPS login and uploads on Zenith.
+
+## Choose a format
+
+Set `type` to select syntax highlighting. Supported values include `yaml`, `yml`, `json`, `ini`, `conf`, `env`, `properties`, `toml`, `xml`, `sh`, `shell`, and `nginx`.
+
+If `type` is absent or unrecognized, Zenith tries the filename extension. Unknown formats remain editable as plain text. Files must contain UTF-8 text without null bytes.
+
+<Warning>
+Syntax highlighting does not validate your app's settings. An invalid configuration can prevent the app from starting. Include comments explaining any settings the owner must keep intact.
+</Warning>
+
+## Apply changes
+
+<Visibility for="humans">
+
+Open the deployment's **Configuration** section and select the configuration file. Complete credential verification if prompted. Edit the contents, then choose **Apply & restart**.
+
+</Visibility>
+
+Saving updates the file before requesting a restart. A restart request does not mean the app has finished starting. Persistent files remain in place.
+
+If the restart request fails after a successful save, the file stays saved. Retry the restart. You can also restart the app without changing a file or environment variable.
+
+If another process changes the file while it is open, Zenith rejects a stale save. Copy any changes you want to keep before reloading the current file and applying your edits again.
+
+## Validate the integration
+
+- Use a managed named volume. External volumes cannot back an editable configuration file.
+- Use a canonical absolute path within the volume. Do not use `/`, parent traversal, repeated slashes, backslashes, control characters, or a trailing slash.
+- Do not use the reserved `.zenith-files-tmp` or `.file-manager-tmp` path segments.
+- Declare each volume and path pair only once, even if multiple storage IDs reference the same volume.
+- Create a regular text file that the app can read and write. Directories and binary files are not editable configurations.
+- On a fresh deployment, edit a visible setting, apply it, and confirm the app uses it after restarting. Restart again and confirm the edit survives.
+
+See the [`configs` reference](/content/zenith-compose-reference#configs) for the field definitions.

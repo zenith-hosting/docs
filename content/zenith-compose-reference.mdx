@@ -67,7 +67,7 @@ networks: {}
 | `x-zenith.catalog` | map | Yes | Catalogue metadata. Required fields are listed below. |
 | `x-zenith.expose` | list | Yes | At least one public endpoint. |
 | `x-zenith.storage` | map | No | Metadata for persistent volumes. |
-| `x-zenith.configs` | list | No | Reserved Zenith configuration metadata. It is not applied at runtime. |
+| `x-zenith.configs` | list | No | Specific files in named volumes that app owners can edit. Applying a change requests an app restart. |
 | `x-zenith.env` | map | No | Deployment environment declarations. |
 | `services` | map | Yes | Compose services referenced by `x-zenith`. Define these with your normal Compose workflow. |
 | `configs` | map | No | Standard Compose inline configuration files mounted by referenced services. |
@@ -195,27 +195,42 @@ Use `public: true` only for files an app owner should browse or edit. Do not exp
 
 ## `x-zenith.configs`
 
-`x-zenith.configs` accepts a list of reserved configuration-file descriptors.
+`configs` exposes specific files in named volumes through the deployment's configuration editor. Follow [Expose configuration files](/content/configuration-files) for a complete example and initialization guidance.
 
 ```yaml
 x-zenith:
+  storage:
+    settings:
+      volume: app_settings
   configs:
-    - path: /etc/example/config.ini
+    - storage: settings
+      path: /config.ini
+      label: Server settings
       description: Example server settings.
       type: ini
 ```
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `path` | string | Yes | Non-empty configuration path. |
-| `description` | string | No | Configuration description. |
-| `type` | string | No | Configuration type. |
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `storage` | string | Yes, to expose an editor | Empty | An `x-zenith.storage` ID backed by a managed named volume. |
+| `path` | string | Yes, when `storage` is set | Empty | Canonical absolute file path relative to the volume root. |
+| `label` | string | No | `path` | Owner-facing name for the file. |
+| `description` | string | No | Empty | Explanation shown with the editor. |
+| `type` | string | No | Filename extension, then plain text | Syntax-highlighting hint, such as `yaml`, `json`, `ini`, or `toml`. It does not validate the contents. |
 
-<Warning>
-Zenith currently parses these fields but does not mount, edit, or transform the referenced file during deployment. Treat `x-zenith.configs` as reserved metadata. Do not depend on it for app configuration.
-</Warning>
+The example assumes `app_settings` is declared under top-level `volumes`. If it is mounted at `/etc/example`, `/config.ini` refers to `/etc/example/config.ini` in that container.
 
-This metadata is separate from the standard top-level Compose [`configs`](#compose-configs) map. Use standard Compose configs to deliver static files at runtime.
+### Configuration validation and behavior
+
+- `storage` must reference an existing storage entry whose `volume` is a declared, non-external named volume.
+- `path` must identify a file within that volume. `/`, parent traversal, repeated slashes, backslashes, control characters, trailing slashes, and the `.zenith-files-tmp` and `.file-manager-tmp` path segments are rejected.
+- Each volume and path pair must be unique, including across storage entries that reference the same volume.
+- The file must already exist and contain UTF-8 text without null bytes. Zenith does not seed it from the declaration.
+- The volume can remain private. Configuration access covers only the declared file; `storage.public: true` separately enables the volume's file manager.
+- Applying changes saves the file, then requests an app restart. If the restart request fails, the file remains saved and the owner can retry the restart.
+- Entries without `storage` remain legacy metadata and do not expose an editor.
+
+This block is separate from standard Compose `configs`, which supplies read-only files from inline `content`. A file mounted directly from a Compose config is not writable through this editor.
 
 ## `env`
 
@@ -518,6 +533,8 @@ configs:
 ```
 
 See [Add static configuration](/content/zenith-compose#add-static-configuration) for the complete Gatus example.
+
+For an editable file, create a copy in a named volume and declare it under [`x-zenith.configs`](#configs). See [Expose configuration files](/content/configuration-files).
 
 #### Top-level config definition
 
