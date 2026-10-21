@@ -150,7 +150,7 @@ The primary endpoint is also the target for a verified custom domain.
 
 ### Forward authentication
 
-Set `x-zenith.expose[].forward_auth` to `true` to require the deployment owner's Zenith account before requests reach that HTTP endpoint. It is not a top-level `x-zenith` property or a Compose service property.
+Set `x-zenith.expose[].forward_auth` to `true` to require the deployment owner's Zenith account before requests reach that HTTP endpoint.
 
 The following `expose` block protects the primary endpoint and a labelled endpoint. It leaves a third endpoint without Zenith forward authentication:
 
