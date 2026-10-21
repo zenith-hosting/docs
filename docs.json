@@ -70,6 +70,14 @@
             ]
           }
         ]
+      },
+      {
+        "group": "Integrations",
+        "root": "content/integrations",
+        "pages": [
+          "content/integrations/calendar",
+          "content/integrations/git"
+        ]
       }
     ]
   },
