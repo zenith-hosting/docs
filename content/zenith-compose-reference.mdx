@@ -195,7 +195,7 @@ Use `public: true` only for files an app owner should browse or edit. Do not exp
 
 ## `x-zenith.configs`
 
-`configs` exposes specific files in named volumes through the deployment's configuration editor. Follow [Expose configuration files](/content/configuration-files) for a complete example and initialization guidance.
+`x-zenith.configs` exposes specific files in named volumes through the deployment's configuration editor. Follow [Expose configuration files](/content/configuration-files) for setup instructions.
 
 ```yaml
 x-zenith:
@@ -225,7 +225,7 @@ The example assumes `app_settings` is declared under top-level `volumes`. If it 
 - `storage` must reference an existing storage entry whose `volume` is a declared, non-external named volume.
 - `path` must identify a file within that volume. `/`, parent traversal, repeated slashes, backslashes, control characters, trailing slashes, and the `.zenith-files-tmp` and `.file-manager-tmp` path segments are rejected.
 - Each volume and path pair must be unique, including across storage entries that reference the same volume.
-- The file must already exist and contain UTF-8 text without null bytes. Zenith does not seed it from the declaration.
+- The file must already exist and contain UTF-8 text without null bytes. Zenith does not create it from the declaration.
 - The volume can remain private. Configuration access covers only the declared file; `storage.public: true` separately enables the volume's file manager.
 - Applying changes saves the file, then requests an app restart. If the restart request fails, the file remains saved and the owner can retry the restart.
 - Entries without `storage` remain legacy metadata and do not expose an editor.
@@ -310,7 +310,7 @@ x-zenith:
 
 Submission validation resolves declarations with deterministic test deployment data and no owner-entered values. An input marked `required: true` must therefore resolve non-empty from `default`, `default_template`, or a computed source. A required input with none of these is rejected before the deployment editor can ask the owner for it.
 
-A static `default` that uses an address at `zenith.hosting`, `example.com`, `example.org`, or `example.net` fails submission validation. To seed an account with the deployment owner's address, use `default_template: '{ZENITH_OWNER_EMAIL}'`.
+A static `default` that uses an address at `zenith.hosting`, `example.com`, `example.org`, or `example.net` fails submission validation. To create an account with the deployment owner's address, use `default_template: '{ZENITH_OWNER_EMAIL}'`.
 
 An `input` attached to a computed source adds display metadata and validation. It also makes the field available in the deployment editor. A generated input accepts an owner replacement because its stored raw value is the source. An `alias` or `template` remains source-driven and resolves again on every render. An input-only declaration uses the stored owner value or its default.
 
