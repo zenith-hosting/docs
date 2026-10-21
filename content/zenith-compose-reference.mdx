@@ -123,7 +123,7 @@ x-zenith:
 | `port` | integer | Yes | None | Container port from `1` through `65535`. The port does not need to appear in the service's Compose `ports` list. |
 | `label` | string | No | Empty | Route label. Omit it for the primary endpoint; a non-empty label gives the endpoint a separate hostname. |
 | `web` | boolean | Yes | None | Marks a service as user-facing. It does not control access. |
-| `forward_auth` | boolean | No | `false` | Requires the deployment owner's Zenith sign-in for this endpoint. Not yet available; see [Forward authentication](#forward-authentication). |
+| `forward_auth` | boolean | No | `false` | Requires the deployment owner's Zenith sign-in for this endpoint. |
 
 Each entry routes to its own Zenith hostname. The entry with no `label` is the primary endpoint. A labelled endpoint has its own route and access setting.
 
@@ -149,10 +149,6 @@ The exposed endpoint uses HTTP routing with TLS terminated by Zenith. `web: fals
 The primary endpoint is also the target for a verified custom domain.
 
 ### Forward authentication
-
-<Warning>
-`forward_auth` is not available yet. This section describes the contract proposed in [Zenith PR #892](https://github.com/zenith-hosting/zenith/pull/892). Do not rely on it for access control until Zenith confirms that support is deployed.
-</Warning>
 
 Set `x-zenith.expose[].forward_auth` to `true` to require the deployment owner's Zenith account before requests reach that HTTP endpoint. It is not a top-level `x-zenith` property or a Compose service property.
 
@@ -687,7 +683,7 @@ Passing validation makes the app eligible for review. It does not publish the ap
 
 | Setting | Default or constraint |
 | --- | --- |
-| `expose[].forward_auth` | `false` when omitted. Not yet available; see [Forward authentication](#forward-authentication). |
+| `expose[].forward_auth` | `false` when omitted. |
 | `storage.public` | `false` when omitted. |
 | `env.services` | Every Compose service when omitted. |
 | `input.label` | The environment variable name when omitted. |
