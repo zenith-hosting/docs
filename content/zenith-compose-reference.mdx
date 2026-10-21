@@ -3,7 +3,9 @@ title: "zenith-compose.yml reference"
 sidebarTitle: "Reference"
 description: "Complete reference for `zenith-compose.yml` specification."
 ---
-`zenith-compose.yml` is a Compose document with a Zenith extension named `x-zenith`. This page documents the `x-zenith` fields accepted by the repository's `zenith-compose.schema.json`.
+`zenith-compose.yml` is a Compose file with an `x-zenith` section. This page lists the fields Zenith accepts and explains how they behave when you deploy an app. The CLI's `zenith check` and `zenith up` enforce a separate, stricter [preview policy](#preview-policy).
+
+Use the [quickstart](/content/quickstart) and [manifest guide](/content/zenith-compose) for the `zenith init` → `zenith check` → `zenith up` → `zenith publish` workflow.
 
 <Visibility for="agents">
 
@@ -19,14 +21,17 @@ description: "Complete reference for `zenith-compose.yml` specification."
 | --- | --- |
 | File name | `zenith-compose.yml` |
 | Location | Repository root |
-| Repository | Public repository connected to Zenith |
-| Revision | The current commit on the repository's default branch |
+| Dockerfile for publishing | A root `Dockerfile` is required, even for image-only manifests. Those images are not rebuilt. |
+| Repository for publishing | Public GitHub repository with a linked GitHub account authorized for publishing |
+| Revision for CLI publishing | Pinned full 40-character commit SHA; `zenith publish` defaults to local `HEAD`, or accepts `--commit` |
 | Maximum size | `128 KiB` |
 | Format | Non-empty YAML that loads as a Compose project |
 | Services | Required top-level Compose map. |
 | Zenith extension | Required top-level `x-zenith` map |
 
-Zenith fetches the exact default-branch commit selected during submission. Later changes to `zenith-compose.yml` are **not automatically pulled** and will not change an existing submission until you submit a new revision. 
+For publishing, the selected commit must be available in the public GitHub repository. It need not be the current default-branch commit. Zenith fetches the root manifest at that exact commit. Later changes to `zenith-compose.yml` are **not automatically pulled** and will not change an existing submission until you submit a new revision.
+
+`zenith up` instead uploads your local project for temporary testing. It does not submit a catalogue listing or establish that the later GitHub publish build is identical.
 
 Unknown fields inside `x-zenith` fail parsing. Standard Compose fields are parsed separately. The repository schema may accept fields outside [Compose compatibility](#compose-compatibility), but only the listed fields have defined Zenith runtime behavior. Zenith admission also rejects the inputs listed under [Zenith runtime restrictions](#zenith-runtime-restrictions).
 
@@ -96,13 +101,13 @@ x-zenith:
 | `source` | URI | Yes | Source or repository URL. |
 | `license` | string | Yes | License identifier or name. |
 | `alternatives` | list of strings | No | Unique names of comparable apps. |
-| `detail` | string | No | Additional catalogue detail. Rougly one paragraph. |
+| `detail` | string | No | Additional catalogue detail. Roughly one paragraph. |
 | `funding` | URI | No | Funding URL or empty string. |
 | `website` | URI | No | Website URL or empty string. |
 
 ## `expose`
 
-`expose` maps one service port to the app's public HTTP hostname. The entry produces a route from `/` to the selected service and port.
+Each `expose` entry maps a service port to a public HTTP hostname. An entry without `label` uses the app's main hostname. Labelled entries use separate endpoint hostnames.
 
 ```yaml
 x-zenith:
@@ -122,12 +127,18 @@ x-zenith:
 
 Each entry routes to its own Zenith hostname. The entry with no `label` is the primary endpoint. A labelled endpoint has its own route and access setting.
 
+The endpoint uses the deployment's normal hostname:
+
+```text
+https://<deployment-name>-<owner>.zh.run
+```
+
 ### Endpoint validation
 
 - `service` must name an existing Compose service.
 - `port` must be between `1` and `65535`.
 - `web` must be present, even when its value is `false`.
-- `expose` must contain at least one entry.
+- `expose` must contain at least one entry. Use an entry without `label` for the main hostname and custom-domain target. Labels must be unique.
 - `forward_auth`, when present, must be a boolean. Omission and `false` both leave the endpoint without Zenith-provided forward authentication.
 - Development preview sessions reject `forward_auth: true`.
 
@@ -209,7 +220,7 @@ volumes:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | Map key | string | Yes | Stable storage ID used by Zenith's deployment API and file manager. |
-| `volume` | string | Required when `public: true` | Name of the top-level Compose volume this entry describes. |
+| `volume` | string | Yes | Name of the top-level Compose volume this entry describes. |
 | `label` | string | No | Owner-facing storage name. |
 | `description` | string | No | Owner-facing description of the stored data. |
 | `public` | boolean | No | Marks the volume as eligible for owner file-manager access where supported. |
@@ -472,22 +483,38 @@ Built-ins are resolved for each deployment. Zenith does not inject them automati
 
 `ZENITH_OWNER_EMAIL` can be empty. Use it with `default_template` when creating an owner account. The value is stored only after it resolves non-empty.
 
+## Preview policy
+
+`zenith check --upload-size` validates the local project against preview policy and estimates upload size. `zenith up` uploads it for server validation and a temporary build. These commands do not validate the entire published runtime contract below.
+
+The preview path requires:
+
+- Exactly one app service using `build: .` and the project-root `Dockerfile`. Do not also set `image` on this service.
+- Up to four dependencies using publicly pullable `image` references, for at most five services total.
+- A primary `x-zenith.expose` entry with `web: true` and no `label`, pointing to the built HTTP app. Every exposed endpoint must target that app. The Dockerfile must `EXPOSE` the primary port.
+- Literal inline Compose values. Compose interpolation and host environment inheritance are rejected.
+
+Preview policy rejects bind mounts, custom networks, `env_file`, file-backed configs/secrets, remote build contexts, alternate Dockerfiles, build args/targets/platforms, and resource/deploy overrides. It allows named Compose volumes and inline configs, but not `x-zenith.env`, `x-zenith.storage`, or `x-zenith.configs`. Keep local secrets in a gitignored `.env.local`; the CLI validates and sends it separately from the source ZIP.
+
+These limits do not redefine the shared schema or published runtime. In particular, an image-only published manifest is not a valid preview project just because its images are pullable. See [temporary previews](/content/up) for the full workflow and lifecycle.
+
 ## Compose compatibility
 
-Zenith uses the Compose model for service definitions, then maps a defined subset to its runtime. Every service becomes one independently managed workload.
+This section describes the published runtime, not the stricter preview policy. Zenith uses the Compose model for service definitions, then maps a defined subset to its runtime. Every service becomes one independently managed workload.
 
 ### Service fields
 
 | Compose field | Zenith behavior |
 | --- | --- |
-| `image` | Required for every service. Zenith pulls the declared image. It does not run a Compose `build`. Pin a tag or digest that the runtime can pull. |
+| `image` | Published workloads run images. For image-based services, declare a publicly pullable image and pin a tag or digest. The supported publishing build path supplies the app image before review. |
+| `build` | Set `build: .` on one app service without `image`; other services need public images. CLI publishing builds the pinned public GitHub commit and uses the resulting app image for review. This is a pre-review build, not a runtime Compose build. See [Build and host features](#build-and-host-features). |
 | `entrypoint` | Becomes the container command. |
 | `command` | Becomes the container arguments. |
 | `environment` | Injected as literal container environment values. Targeted `x-zenith.env` values take precedence. |
 | `configs` | Mounts referenced top-level inline Compose configs as read-only files. Short and long service syntax are supported. |
 | `ports` | Declares container and internal service ports. An `x-zenith.expose` port is added automatically when absent. Host IP binding has no Zenith meaning. |
 | `volumes` | Named and anonymous volume mounts become persistent storage. `tmpfs` mounts remain memory-backed and ephemeral. Bind mounts are rejected during developer submission. |
-| `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level secret content has a defined submission path. |
+| `secrets` | Service secret references are mounted read-only. Their default target is `/run/secrets/<source>`. Only inline top-level content is supported; it is visible in the public repository and must not contain private credentials. |
 | `healthcheck` | Becomes startup, readiness, and liveness checks. `CMD` and `CMD-SHELL` are supported. `NONE` or `disable: true` disables checks. |
 | `depends_on` | Only long-form `condition: service_healthy` creates a wait. `service_started` and `service_completed_successfully` do not create runtime ordering. |
 | `deploy.replicas` | Sets the number of service replicas. Default: `1`. |
@@ -498,8 +525,9 @@ Zenith uses the Compose model for service definitions, then maps a defined subse
 | `tty` | Allocates a TTY. |
 | `user` | Numeric `uid` or `uid:gid` values set the runtime user and group. Named users are not translated. |
 | `read_only` | Makes the container root filesystem read-only. Declared mounts remain available. |
-| `cap_add`, `cap_drop` | Add or remove Linux capabilities. |
-| `privileged` | Runs the container as privileged and adds a security warning to the review. Use only when the app cannot run without it. |
+| `cap_drop` | Removes Linux capabilities from the container. |
+| `cap_add` | Adds specific Linux capabilities; it does not enable `privileged` mode. Avoid it unless your app needs it. Some capabilities weaken isolation or may be rejected by the cluster. |
+| `privileged` | `privileged: true` is not supported. Submission fails if you set it. |
 
 Services resolve each other by service name inside the deployment. `ports` does not limit which ports sibling services can reach.
 
@@ -575,43 +603,55 @@ services:
 
 Each reference is service-scoped. A service receives only the configs it names. A config target must not collide with another config, volume, tmpfs, or secret mount in the same service. Unknown sources fail validation.
 
-The mounted file is read-only and uses `subPath`. Zenith performs no runtime substitution inside `content`, including no `x-zenith.env` substitution. Standard Compose interpolation still runs while the manifest loads, so write `$$` when the mounted file must contain a literal `$`. Do not put passwords, tokens, private keys, or other secrets in a ConfigMap. Use deployment environment values or inline Compose secrets for secret material.
+The mounted file is read-only and uses `subPath`. Zenith performs no runtime substitution inside `content`, including no `x-zenith.env` substitution. Standard Compose interpolation still runs while the manifest loads, so write `$$` when the mounted file must contain a literal `$`. Do not put passwords, tokens, or private keys in `configs.content` or inline `secrets.content`. Both are part of the public manifest. Use generated or owner-provided deployment environment values for private credentials.
 
 When Zenith applies an updated app definition, a content change updates `zenith/checksum` and rolls only services that consume that config. The file is not hot-reloaded in an existing container. A Git push does not update a submission or deployment automatically. Submit and apply the new definition through the normal workflow.
 
 ## Zenith runtime restrictions
 
-The repository schema describes document shape. Zenith admission applies stricter deployment rules even when generic Compose syntax permits a field.
+Some valid Compose settings do not work on Zenith. Use the [supported service fields](#service-fields) above and check these restrictions before submitting. The [preview policy](#preview-policy) adds further restrictions for `zenith check` and `zenith up`.
 
-Developer submissions cannot read repository or host files. Therefore:
+Published runtime configuration cannot read repository or host files. The supported publishing build can read its pinned source, but that does not make file-backed runtime configuration available. Therefore:
 
 - Top-level `secrets.<name>.file` is rejected.
 - Top-level `configs.<name>.file` and every other non-inline config source are rejected.
 - Service `env_file` and `label_file` are rejected.
 - Service `extends` is rejected.
 - Top-level `include` is rejected.
+- Service `privileged: true` is rejected.
+
+Other Compose fields may parse, but Zenith does not guarantee that they will work.
+
+<Warning>
+Files in your public repository are public, even if you put them in `secrets.content`. Never put passwords or keys in an inline config or secret. Use deployment environment values for private credentials.
+</Warning>
 
 ### Build and host features
 
 <Warning>
-Zenith does not build images during deployment. A service with `build` still needs `image`; the declared image is what runs.
+The runtime runs images; it does not execute Compose builds. With `zenith publish`, an app using `build: .` and a root Dockerfile can be built from the pinned public GitHub commit before review. You do not need to publish that app image to GHCR yourself. A manifest using publicly pullable images remains supported.
 
-Bind mounts are rejected. The deployment cannot read a path from the GitHub repository or Zenith host. Use an inline Compose config for static non-secret content, an inline secret for sensitive static content, or a named volume for mutable data.
+Do not infer support for arbitrary build contexts, alternate Dockerfiles, build options, or multiple build services from this publishing path. The CLI waits for the publish artifact before submitting; it does not reuse the local preview image.
+
+Bind mounts are rejected. The running deployment cannot read a path from the GitHub repository or Zenith host. Use an inline Compose config for static non-secret content, deployment environment values for credentials, or a named volume for mutable data. Do not commit secrets to the public repository.
 </Warning>
 
 ## Submission validation
 
-Zenith performs these checks before accepting the app for review:
+CLI publishing checks the selected public GitHub commit and publishing authorization. When a publish build is required, the CLI waits for it to succeed before submitting the app for review. See [publishing](/content/publish) for account prerequisites, metadata, screenshots, and revision commands.
 
-1. Fetch the root `zenith-compose.yml` from the selected default-branch commit.
+Zenith also validates the manifest before accepting the app for review:
+
+1. Fetch the root `zenith-compose.yml` from the selected pinned commit.
 2. Enforce the non-empty `128 KiB` file limit.
 3. Reject external file references, unsupported config sources, and bind mounts.
 4. Load the Compose project with an empty host environment and discard environment files.
 5. Parse `x-zenith` strictly.
 6. Validate required catalogue and endpoint fields.
 7. Resolve every `x-zenith.env` declaration against deterministic test deployment data.
-8. Render the complete app and reject invalid or duplicate runtime object names.
-9. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
+8. Reject services with `privileged: true`.
+9. Render the complete app and reject invalid or duplicate runtime object names.
+10. Reject unresolved pre-v1 `{{ZENITH_*}}` tokens.
 
 ### Schema validation
 
@@ -631,7 +671,7 @@ The schema rejects unknown fields inside `x-zenith`, rejects unknown top-level f
 Runtime validation also rejects:
 
 - An empty Compose service set.
-- A service without `image`.
+- A runtime service without an image after any supported publish build has been resolved.
 - Endpoint references to missing services.
 - Invalid or colliding service names.
 - Colliding persistent-volume directory names.
@@ -669,6 +709,8 @@ Passing validation makes the app eligible for review. It does not publish the ap
 
 <Visibility for="agents">
 
-> When generating a manifest, use the smallest field set that describes the verified app behavior. Validate references across `services`, `configs`, `expose`, `storage`, and `env`; then run the checks in [Create zenith-compose.yml](/content/zenith-compose). Do not submit or publish on the user's behalf without explicit authorization.
+> When generating a manifest, use the smallest field set that describes the verified app behavior. Validate references across `services`, `configs`, `expose`, `storage`, and `env`; then run the checks in [Create zenith-compose.yml](/content/zenith-compose). Distinguish preview-policy failures from published runtime validation failures.
+>
+> Use `NO_COLOR=1` for agent CLI runs, such as `NO_COLOR=1 zenith check --upload-size`, without verbose output overrides. Report the commands run, the tested revision, and any unverified assumptions. Do not push commits, publish images, connect accounts, accept agreements, or submit with `zenith publish` without explicit authorization for that external action. Existing credentials and a passing preview are not publication consent.
 
 </Visibility>

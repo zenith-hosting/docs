@@ -1,36 +1,48 @@
 ---
-title: "Shipping with Zenith"
-description: "Prepare an app for Zenith, write its deployment manifest, or let a coding agent handle it."
+title: "Build, test, and publish with Zenith"
+description: "Use the Zenith CLI to prepare your app, test a temporary deployment, and publish it for review."
 mode: "wide"
 ---
 
-Prepare your app for Zenith, from its first container image to its publishing submission.
+Use the [Zenith CLI](https://github.com/zenith-hosting/zenith-cli) to take your app from a local project to a tested deployment and a marketplace submission.
+
+```bash
+npm install -g @zenith-hosting/cli
+zenith auth login
+zenith init
+zenith check --upload-size
+zenith up
+```
+
+Run these commands from your app's root directory with Node.js `20.10` or later. `zenith up` builds your local project on Zenith and returns a temporary URL. When you are ready to submit a public GitHub commit for review, use `zenith publish`.
 
 <Visibility for="humans">
 
+## Start with the CLI
+
 <Columns cols={2}>
-  <Card title="Follow the quickstart" icon="rocket" href="/content/quickstart" cta="Start the guide" arrow="true">
-    Containerise your app, create `zenith-compose.yml`, and submit the repository to Zenith.
+  <Card title="Install and get started" icon="terminal" href="/content/quickstart">
+    Sign in, prepare your project, and run local checks.
   </Card>
-  <Card title="Use the Zenith skill" icon="wand-magic-sparkles" href="/content/agent-skill" cta="Install the skill" arrow="true">
-    Let a coding agent inspect your repository and prepare the container and manifest pull requests.
+  <Card title="Test with zenith up" icon="flask" href="/content/up">
+    Launch a temporary deployment, inspect logs, and stop it when done.
+  </Card>
+  <Card title="Publish with zenith publish" icon="paper-plane" href="/content/publish">
+    Submit a pinned public commit and app listing for review.
+  </Card>
+  <Card title="Prepare your container" icon="box" href="/content/containerise">
+    Adapt your Dockerfile or use existing public images.
   </Card>
 </Columns>
 
-## Find what you need
+## Configure your app
 
 <Columns cols={2}>
-  <Card title="Container requirements" icon="box" href="/content/containerise">
-    Ensure your app and all services it needs are avaiable as a public `linux/amd64` images.
-  </Card>
   <Card title="Create zenith-compose.yml" icon="file-code" href="/content/zenith-compose">
-    Describe the metadata, configuration, services and storage for your app.
+    Describe your app's services, environment values, endpoints, and storage.
   </Card>
-  <Card title="Manifest reference" icon="brackets-curly" href="/content/zenith-compose-reference">
-    Look up every supported field and its validation rules.
-  </Card>
-  <Card title="Submit your app" icon="paper-plane" href="/content/submit">
-    Connect the app's repository, prepare its listing, and submit it for review.
+  <Card title="Compose reference" icon="brackets-curly" href="/content/zenith-compose-reference">
+    Check supported fields, defaults, and validation rules.
   </Card>
 </Columns>
 
@@ -38,12 +50,14 @@ Prepare your app for Zenith, from its first container image to its publishing su
 
 <Visibility for="agents">
 
-> Choose the path that matches the user's request:
+## Agent workflow
+
+> 1. Read the [CLI quickstart](/content/quickstart), [container guide](/content/containerise), and [Compose guide](/content/zenith-compose). Use the [reference](/content/zenith-compose-reference) for schema details.
+> 2. Use `NO_COLOR=1` for plain output in a non-interactive session. Run without a TTY and supply explicit inputs, such as `--template` for `init` and `--metadata` for publishing. See [agent session setup](/content/quickstart#run-a-non-interactive-agent-session).
+> 3. Run `NO_COLOR=1 zenith check --upload-size`. When a remote test is authorized, run `NO_COLOR=1 zenith up` and verify the app at the returned URL. Follow the [testing workflow](/content/up).
+> 4. Record the session ID, tested commit, local changes, verification results, and expiry. Stop the preview with `NO_COLOR=1 zenith down` when done.
+> 5. Only when explicitly authorized, follow the [publishing workflow](/content/publish) to submit a pushed public commit. Record the submission receipt and status.
 >
-> - For an explanation of the full workflow, read the [quickstart](/content/quickstart).
-> - To prepare a repository, install and use the [`create-zenith-compose` skill](/content/agent-skill).
-> - For manifest fields and validation rules, read the [`zenith-compose.yml` reference](/content/zenith-compose-reference).
->
-> Do not submit an app, merge pull requests, or change registry visibility without the repository owner's authorization.
+> `NO_COLOR=1` does not bypass prompts, browser OAuth, GitHub connection, or the Developer Agreement. Do not push commits, publish images, change registry visibility, or submit an app without authorization. A preview is temporary; a publish submission enters review, not immediate marketplace publication.
 
 </Visibility>
