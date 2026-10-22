@@ -69,6 +69,7 @@ networks: {}
 | `x-zenith.storage` | map | No | Metadata for persistent volumes. |
 | `x-zenith.configs` | list | No | Specific files in named volumes that app owners can edit. Applying a change requests an app restart. |
 | `x-zenith.env` | map | No | Deployment environment declarations. |
+| `x-zenith.sign_in` | map | No | Register callback paths for Sign in with Zenith through OpenID Connect. |
 | `services` | map | Yes | Compose services referenced by `x-zenith`. Define these with your normal Compose workflow. |
 | `configs` | map | No | Standard Compose inline configuration files mounted by referenced services. |
 | `volumes` | map | No | Compose named volumes. |
@@ -106,6 +107,8 @@ x-zenith:
 | `website` | URI | No | Website URL or empty string. |
 
 ## `expose`
+
+For setup examples, see [Public URLs and domains](/content/public-urls).
 
 Each `expose` entry maps a service port to a public HTTP hostname. An entry without `label` uses the app's main hostname. Labelled entries use separate endpoint hostnames.
 
@@ -191,6 +194,8 @@ Treat every exposed hostname as a separate access decision. An unprotected endpo
 For setup guidance, see [Add forward authentication](/content/zenith-compose#add-forward-authentication).
 
 ## `storage`
+
+For setup and file-manager access, see [Persistent storage and files](/content/persistent-storage).
 
 `storage` is a map keyed by a stable storage ID. Each value describes a top-level Compose named volume.
 
@@ -280,6 +285,8 @@ The example assumes `app_settings` is declared under top-level `volumes`. If it 
 This block is separate from standard Compose `configs`, which supplies read-only files from inline `content`. A file mounted directly from a Compose config is not writable through this editor.
 
 ## `env`
+
+For setup examples, see [Environment variables and secrets](/content/environment-variables).
 
 `env` is a map from a container environment variable name to an environment declaration.
 
@@ -484,6 +491,7 @@ Built-ins are resolved for each deployment. Zenith does not inject them automati
 | `ZENITH_PUBLIC_HOSTS` | Canonical Zenith authority and verified custom-domain authority, comma-separated. |
 | `ZENITH_PUBLIC_HOSTNAME` | Hostname from `ZENITH_PUBLIC_URL`, without a port. |
 | `ZENITH_PUBLIC_HOSTNAMES` | Canonical Zenith hostname and verified custom-domain hostname, comma-separated and without ports. |
+| `ZENITH_CUSTOMER_ID` | Immutable Zenith customer ID of the deployment owner. |
 | `ZENITH_OWNER_EMAIL` | Deployment owner's account email, or empty when unavailable. |
 | `ZENITH_SMTP_HOST` | `smtp.zenithusercontent.com`. |
 | `ZENITH_SMTP_PORT` | `587`. |
@@ -492,7 +500,22 @@ Built-ins are resolved for each deployment. Zenith does not inject them automati
 | `ZENITH_SMTP_USER` | Deployment-specific SMTP username. |
 | `ZENITH_SMTP_PASS` | Deployment-specific SMTP password. |
 
+Follow [SMTP email](/content/smtp-email) to configure the relay, authentication, and STARTTLS.
+
+The [Sign in with Zenith guide](/content/sign-in-with-zenith-reference#oidc-credentials) lists the OIDC credential built-ins.
+
 `ZENITH_OWNER_EMAIL` can be empty. Use it with `default_template` when creating an owner account. The value is stored only after it resolves non-empty.
+
+## Sign in
+
+`x-zenith.sign_in` registers your app's OpenID Connect callbacks with Zenith. Your app must implement or enable an OIDC client.
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `redirect_paths` | list of strings | Yes, when `sign_in` is present | None | One to eight unique, exact callback paths starting with `/`. |
+| `owner_id_env` | string | No | Unset | Name of a plain `x-zenith.env` input used to seed the owner's local account ID on fresh deployments. |
+
+For setup, callback restrictions, credential built-ins, owner linking, and protocol behavior, see [Sign in with Zenith](/content/sign-in-with-zenith).
 
 ## Preview policy
 
@@ -561,6 +584,8 @@ Top-level, non-external named volumes share one persistent allocation. Each volu
 External volumes do not create Zenith storage. Do not rely on an external volume being present in the deployment.
 
 ### Compose configs
+
+For a complete app example, see [Static configuration files](/content/static-configuration).
 
 Use standard top-level Compose `configs` to deliver a static, non-secret file. Define each config with inline `content`, then reference it from every service that needs the file.
 

@@ -111,7 +111,7 @@ Set the catalogue metadata in `catalog`. The schema requires every field marked 
 
 ## Expose a service
 
-`expose` maps a Compose service port to a public Zenith hostname.
+`expose` maps a Compose service port to a public Zenith hostname. Follow [Public URLs and domains](/content/public-urls) to configure your app's base URL, allowed hosts, and labelled endpoints.
 
 ```yaml
 x-zenith:
@@ -155,181 +155,23 @@ Development preview sessions do not support `forward_auth: true`. Ordinary Docke
 
 ## Add deployment variables
 
-`env` declares values Zenith resolves for each deployment. The map key becomes the literal container environment variable name.
+Declare runtime values with `x-zenith.env`. Follow [Environment variables and secrets](/content/environment-variables) for aliases, generated credentials, service scoping, and owner inputs.
 
-### Use the public URL
+## Send email
 
-A bare string aliases another declared value or a Zenith built-in:
+Use Zenith's outbound SMTP relay for verification emails, password resets, and notifications. Follow [SMTP email](/content/smtp-email) to map credentials and configure STARTTLS.
 
-```yaml
-x-zenith:
-  env:
-    APP_URL: ZENITH_PUBLIC_URL
-    APP_HOST: ZENITH_PUBLIC_HOST
-```
+## Add Sign in with Zenith
 
-Common built-ins include:
-
-| Name | Value |
-| --- | --- |
-| `ZENITH_PUBLIC_URL` | Verified custom URL, or the deployment's Zenith URL. |
-| `ZENITH_PUBLIC_HOST` | Public URL authority, including a port when present. |
-| `ZENITH_PUBLIC_HOSTNAME` | Public hostname without a port. |
-| `ZENITH_OWNER_EMAIL` | Account email when available. |
-| `ZENITH_SMTP_HOST` | Hosted SMTP server. |
-| `ZENITH_SMTP_PORT` | Hosted SMTP port. |
-| `ZENITH_SMTP_USER` | Deployment SMTP username. |
-| `ZENITH_SMTP_PASS` | Deployment SMTP password. |
-
-### Generate a stable secret
-
-Use `generate` with an RE2 pattern. Zenith creates the value once and keeps it for the life of the deployment.
-
-```yaml
-x-zenith:
-  env:
-    APP_SECRET:
-      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
-      input:
-        label: App secret
-        secret: true
-```
-
-The pattern must be a non-empty string. Changing the pattern does not rotate a value that a deployment already stores. `generate`, `template`, and `alias` are mutually exclusive.
-
-### Build a value from other variables
-
-Use `template` to substitute `{NAME}` references on every render:
-
-```yaml
-x-zenith:
-  env:
-    API_URL:
-      template: '{ZENITH_PUBLIC_URL}/api'
-```
-
-Add `services` to inject a value into selected Compose services. Without it, Zenith injects the value into every service.
-
-```yaml
-x-zenith:
-  env:
-    DATABASE_PASSWORD:
-      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
-      services:
-        - web
-        - database
-```
-
-An `x-zenith.env` value replaces a Compose `environment` entry with the same name in the services it targets.
+Use [`x-zenith.sign_in`](/content/sign-in-with-zenith) to connect your app to Zenith through OpenID Connect. The dedicated guide covers callback paths, credential mappings, owner account linking, and access controls.
 
 ## Add persistent storage
 
-`storage` describes a Compose named volume.
-
-```yaml
-x-zenith:
-  storage:
-    uploads:
-      volume: app_uploads
-      label: Uploaded files
-      description: Images and documents uploaded by app users.
-      public: true
-
-services:
-  app:
-    volumes:
-      - app_uploads:/app/uploads
-
-volumes:
-  app_uploads:
-```
-
-| Field | Value |
-| --- | --- |
-| `volume` | Top-level Compose volume name. Required. It must contain only letters, digits, `.`, `_`, or `-`. |
-| `label` | Name shown to the app owner. Optional. |
-| `description` | Description of the stored data. Optional. |
-| `public` | Gives the app owner file-manager access when enabled. Optional, defaults to `false`. |
-
-<Warning>
-Do not mark database files, indexes, credentials, or other application internals as public storage. `public: true` makes the volume eligible for app-owner file-manager access.
-</Warning>
+Mount named volumes for durable app data. Follow [Persistent storage and files](/content/persistent-storage) to configure storage and owner file-manager access.
 
 ## Add static configuration
 
-Use standard Compose `configs` with inline `content` when your app needs a static, non-secret file. Declare the file at the top level, then reference it from each service that needs it.
-
-Prefer this to an init container or shell entrypoint that only writes a fixed file. You do not need a shell in the app image, an adjacent config file, or a bind mount.
-
-This complete example runs Gatus with a status check and persistent SQLite history:
-
-```yaml zenith-compose.yml
-x-zenith:
-  catalog:
-    name: Gatus
-    description: Monitor endpoints and publish a status page.
-    authors:
-      - TwiN
-    tags:
-      - monitoring
-    source: https://github.com/TwiN/gatus
-    license: Apache-2.0
-  expose:
-    - service: gatus
-      port: 8080
-      web: true
-  storage:
-    history:
-      volume: gatus_data
-      label: Monitor history
-      description: SQLite history of endpoint checks.
-
-services:
-  gatus:
-    image: ghcr.io/twin/gatus:v5.36.0
-    environment:
-      GATUS_CONFIG_PATH: /config/config.yaml
-    configs:
-      - source: gatus-config
-        target: /config/config.yaml
-        mode: 0444
-    volumes:
-      - gatus_data:/data
-    ports:
-      - "8080:8080"
-
-configs:
-  gatus-config:
-    content: |
-      storage:
-        type: sqlite
-        path: /data/data.db
-      endpoints:
-        - name: cloudflare
-          url: https://www.cloudflare.com
-          interval: 60s
-          conditions:
-            - "[STATUS] == 200"
-
-volumes:
-  gatus_data:
-```
-
-Gatus reads `/config/config.yaml` from a read-only config mount. Its check history stays on the separate `gatus_data` volume. Only services that reference `gatus-config` receive the file.
-
-Zenith supports inline `content`, short service references, and long references with `source`, `target`, and optional `mode`. File-backed and external config sources are unsupported. See [Compose configs](/content/zenith-compose-reference#compose-configs) for defaults and validation rules.
-
-<Note>
-Standard Compose `configs` is a top-level map next to `services`. Use `x-zenith.configs` for files users can edit in Zenith.
-</Note>
-
-When Zenith applies an updated config definition, it restarts the services that consume the changed content. It does not update a running process's mounted file in place. Pushing a Git commit does not automatically update an existing deployment.
-
-<Warning>
-Do not put passwords, tokens, or private keys in `configs.content`. Use deployment environment values for secrets. Zenith does not substitute `x-zenith.env` values into config content.
-</Warning>
-
-If your app supports its own environment expansion in config files, declare its variables and write `$$` wherever Compose must preserve a literal `$` for the app. Keep a startup adapter when you need runtime-generated content or a writable config file. Keep database setup and dependency health checks separate from static file delivery.
+Mount static, non-secret files with inline Compose `configs`. Follow [Static configuration files](/content/static-configuration) for a complete example and runtime behavior.
 
 ## Expose editable configuration files
 
