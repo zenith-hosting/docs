@@ -18,15 +18,19 @@ zenith check --upload-size
 Review your root `Dockerfile` and `zenith-compose.yml`. The preview policy supports:
 
 - Exactly one app service built with `build: .` and the root `Dockerfile`. Do not also set `image` on this service.
-- Up to four additional services using public container images.
-- An HTTP app listening on `0.0.0.0`, exposed through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile must `EXPOSE` that port.
+- Dependencies using public container images.
+- An HTTP app listening on `0.0.0.0`, exposed through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile can omit `EXPOSE`.
 - Named volumes and dependencies declared with `depends_on`.
 
-Expose only the built app publicly. Bind mounts, custom networks, `env_file`, host environment inheritance, remote build contexts, alternate Dockerfiles, build arguments, build targets, and resource or deployment overrides are not supported in previews.
+Bind mounts, external configuration files, remote build contexts, alternate Dockerfiles, and build arguments, targets, or platforms fail preview validation. Host environment variables are not available to Compose interpolation.
 
-Preview policy also rejects Compose interpolation and the `x-zenith.env`, `x-zenith.storage`, and `x-zenith.configs` blocks. Use literal Compose values, named volumes, and `.env.local` for preview configuration.
+The CLI also rejects `privileged: true` and inline secret content. Use `.env.local` for private test credentials.
 
-The [Compose reference](/content/zenith-compose-reference) describes the wider published-app contract. A field in that reference is not necessarily supported by the stricter preview policy. Use `zenith check` to check preview compatibility. Zenith validates the project again after upload.
+Use `x-zenith.env`, `x-zenith.storage`, and `x-zenith.configs` in previews as well as published apps. Compose interpolation uses an empty host environment. Write `$$` for a literal dollar sign.
+
+Use [platform mappings](/content/environment-variables) for generated values, SMTP, and OIDC credentials. Keep other test secrets in `.env.local`.
+
+Use the [Compose reference](/content/zenith-compose-reference) for the shared contract and [preview constraints](/content/zenith-compose-reference#preview-policy). Run `zenith check` before uploading. Zenith validates the project again after upload.
 
 ## Supply test secrets
 
@@ -36,10 +40,10 @@ Put local test secrets in a gitignored `.env.local` at the project root. Do not 
 API_TOKEN=replace-with-a-test-token
 ```
 
-`zenith check` validates this file separately. `zenith up` sends its values separately from the source archive. The file must be valid UTF-8 and can contain up to `64` variables and `32 KiB` of data. Reserved variable names are rejected. Other `.env` files are excluded from the upload and are not loaded as test secrets.
+`zenith check` validates `.env.local` separately. `zenith up` sends the values separately from the source archive. The file must be valid UTF-8 and can contain up to `64` variables and `32 KiB` of data. Reserved variable names are rejected. Other environment files are not loaded as test secrets.
 
 <Warning>
-Use test credentials and test data. The deployment has a public URL. Do not assume that an unshared URL makes the app private.
+Use test credentials and test data. Anyone with the deployment URL can reach the app. Configure app authentication if the test data needs access control.
 </Warning>
 
 ## Launch a temporary deployment
@@ -50,7 +54,7 @@ zenith up
 
 The CLI checks your project, uploads it, waits for the build, and prints the URL, session ID, and teardown time when the app is ready. The upload uses your local files, including eligible uncommitted changes. It does not require a public repository or a Git push.
 
-The queue estimate describes when the build may start, not when the URL will be ready.
+The queue estimate predicts when the build may start. Build and deployment time follow.
 
 <Visibility for="humans">
 
@@ -60,7 +64,7 @@ Open the returned URL. Test the app's main flows, including sign-in, writes, and
 
 ### Lifetime and replacement
 
-A preview lasts `20 minutes` from readiness by default. The service can limit that lifetime; use the teardown time printed by the CLI. Queue and build time do not consume the ready lifetime. Treat preview data as temporary.
+A preview lasts `20 minutes` from readiness by default. Use the teardown time printed by the CLI because the service can limit the lifetime. Queue and build time do not consume the ready lifetime. Treat preview data as temporary.
 
 Each account has one live preview. A new preview of the same repository replaces the old one only after the new one is ready. To replace a preview from another repository, pass its session ID explicitly:
 
@@ -72,7 +76,9 @@ Closing the CLI cancels a queued preview. A build that has already started conti
 
 ### Upload limits
 
-Uploads are limited to `100 MiB` compressed and `200 MiB` of expanded files. File selection combines `.gitignore` and `.dockerignore`. The root Dockerfile, Compose file, and `.dockerignore` are retained. Git metadata, `node_modules`, private-key patterns, and `.env` files are excluded.
+Uploads are limited to `100 MiB` compressed and `200 MiB` expanded. File selection combines `.gitignore` with `Dockerfile.dockerignore`, or `.dockerignore` when no Dockerfile-specific ignore file exists. Required build and ignore files are retained.
+
+Git metadata, `node_modules`, private-key patterns, and environment files are excluded. The templates `.env.example`, `.env.sample`, and `.env.template` remain eligible for upload.
 
 Review your project before uploading. Ignore rules are not a substitute for checking that source files contain no secrets.
 
@@ -84,7 +90,7 @@ zenith logs --source runtime
 zenith logs --source runtime --follow
 ```
 
-Without a session ID, `logs` uses the last session for the current project and Zenith address. The default source is `all`; the default runtime tail is `200` lines. Pass a session ID to inspect a specific deployment:
+Without a session ID, `logs` uses the last session for the current project and Zenith address. The default source is `all`. The default runtime tail is `200` lines. Pass a session ID to inspect a specific deployment:
 
 ```bash
 zenith logs <session-id> --source build --follow
@@ -98,7 +104,7 @@ If validation fails, fix the reported Dockerfile, Compose, environment, or archi
 zenith up --wait-timeout 600
 ```
 
-This changes the CLI wait, not the deployment lifetime. A timeout does not stop a build that has already started. Use the printed session ID to inspect logs or request cleanup.
+The timeout changes how long the CLI waits for new output. The deployment lifetime stays the same. A timeout does not stop a build that has already started. Use the printed session ID to inspect logs or request cleanup.
 
 ## Stop the deployment
 

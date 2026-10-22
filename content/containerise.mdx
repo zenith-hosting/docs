@@ -8,14 +8,14 @@ The CLI can build your app on Zenith. You do not need to publish an image to a r
 | Workflow | Build source |
 | --- | --- |
 | `zenith up` | Your uploaded local project. Requires one app with `build: .` and a root `Dockerfile`. |
-| `zenith publish` with `build: .` | The pinned commit in your public GitHub repository. Zenith builds the image before submitting it for review. |
+| `zenith publish` with `build: .` | The pinned public GitHub commit. Zenith reuses a verified matching preview image or builds the commit before review. |
 | Publishing an app with `image` | An existing image that Zenith can pull without registry credentials. |
 
 <Info>
-Zenith currently requires a root `Dockerfile` when you submit, even if `zenith-compose.yml` uses only prebuilt images. It does not rebuild those images.
+A root `Dockerfile` is required for `build: .`. Image-only submissions use the declared public images and do not require a Dockerfile.
 </Info>
 
-Image-based dependencies, such as Postgres or Redis, must also be publicly pullable. A successful local preview does not prove that the separately built publish image is identical.
+Image-based dependencies, such as Postgres or Redis, must also be publicly pullable. Zenith reuses a preview image only after verifying that its source matches the pinned publish commit.
 
 ## Prepare a Dockerfile
 
@@ -42,22 +42,22 @@ The CLI adds missing files for a detected or selected framework. It preserves an
 
 ## Check the runtime
 
-Each container must:
+Use images that support `linux/amd64`. Configure HTTP services to listen on `0.0.0.0`.
 
-- Support `linux/amd64`.
-- Listen on `0.0.0.0`, not `localhost`.
+Configure each service to:
+
 - Write logs to `stdout` and `stderr`.
 - Start without host-mounted source files.
 - Read deployment-specific values and secrets from environment variables.
 - Store persistent data in declared volumes.
 
-Use [inline Compose configs](/content/zenith-compose#add-static-configuration) for static, non-secret files. Record the app's listening port, health endpoint, required variables, and data paths in `zenith-compose.yml`.
+Use [static configuration files](/content/static-configuration) for static, non-secret files. Record the app's listening port, health endpoint, required variables, and data paths in `zenith-compose.yml`.
 
 <Warning>
-Do not copy `.env` files, private keys, or registry credentials into an image. Use a gitignored `.env.local` for [preview secrets](/content/up#supply-test-secrets) and `x-zenith.env` for [deployment variables](/content/zenith-compose#add-deployment-variables).
+Do not copy `.env` files, private keys, or registry credentials into an image. Use a gitignored `.env.local` for [preview secrets](/content/up#supply-test-secrets) and `x-zenith.env` for [environment variables and secrets](/content/environment-variables).
 </Warning>
 
-For a Zenith-built app, set `build: .` on one service and do not also set `image`. Other services need public `image` references. Zenith builds before submission, not during deployment.
+For a Zenith-built app, set `build: .` on one service and do not also set `image`. Other services need public `image` references. Zenith prepares the image before submission. It does not run Compose builds during deployment.
 
 ## Test the build on Zenith
 
@@ -68,7 +68,7 @@ zenith logs --source build
 zenith logs --source runtime
 ```
 
-`check` validates preview policy; it does not build the image. `up` builds the root `Dockerfile` using the uploaded project. Preview builds do not support alternate Dockerfiles, build arguments, build targets, remote contexts, or bind mounts. See [temporary deployments](/content/up) for the complete workflow.
+`check` validates preview policy. It does not build the image. `up` builds the root `Dockerfile` using the uploaded project. Preview builds do not support alternate Dockerfiles, build arguments, build targets, remote contexts, or bind mounts. See [temporary deployments](/content/up) for the complete workflow.
 
 After testing, run:
 

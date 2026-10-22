@@ -1,0 +1,61 @@
+---
+title: "Protect an app with forward authentication"
+sidebarTitle: "Forward authentication"
+description: "Require the deployment owner's Zenith account before requests reach an app endpoint."
+---
+
+Use forward authentication to restrict an HTTP endpoint to the deployment owner's Zenith account. Zenith checks access before forwarding requests to the app. If the app has its own login, configure that login separately.
+
+<Warning>
+Every path on a protected hostname requires Zenith authentication. Do not enable this setting on an endpoint that accepts public webhooks or unauthenticated API clients.
+</Warning>
+
+## Protect an endpoint
+
+Add `forward_auth: true` to each `x-zenith.expose` entry that needs protection:
+
+```yaml
+x-zenith:
+  expose:
+    - service: app
+      port: 3000
+      web: true
+      forward_auth: true
+    - service: admin
+      port: 3001
+      label: admin
+      web: true
+      forward_auth: true
+```
+
+Add these entries to your existing manifest. Replace the service names and ports with your app's values.
+
+Configure every endpoint separately. A labelled endpoint does not inherit protection from the primary endpoint, even when both reach the same service. A verified custom domain inherits the primary endpoint's setting.
+
+Set `forward_auth: false` or omit the field to leave an endpoint without this check. `web: false` does not bypass forward authentication.
+
+## Check access in a browser
+
+Test a hosted deployment. Development previews reject `forward_auth: true`, and local Docker Compose does not enforce Zenith authentication.
+
+<Visibility for="humans">
+
+1. Open the protected URL while signed out.
+2. Sign in with the deployment owner's Zenith account.
+3. Check the destination hostname and choose **Open app**.
+4. Confirm that the app opens at the original URL.
+5. Try a different Zenith account and confirm that access is denied.
+
+</Visibility>
+
+<Visibility for="agents">
+
+> Verify anonymous redirection, owner sign-in, explicit destination confirmation, and denial for another account. Do not treat a login page as evidence that the app is healthy.
+
+</Visibility>
+
+Check every exposed hostname for an unprotected route to the same private data. Unauthenticated API requests and WebSocket upgrades receive a denial instead of an interactive login redirect.
+
+For app accounts and access by additional Zenith members, use [Sign in with Zenith](/content/sign-in-with-zenith) if your app supports OpenID Connect.
+
+See the [forward authentication reference](/content/zenith-compose-reference#forward-authentication) for request handling, session revocation, and endpoint interactions.

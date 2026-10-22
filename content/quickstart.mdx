@@ -38,7 +38,7 @@ From your app's root directory, run:
 zenith init
 ```
 
-In an existing project, `init` detects the framework and adds missing Zenith files. It keeps your source and existing `Dockerfile` and Compose files. Review the generated files against your app's real start command, port, dependencies, and data paths.
+In an existing project, `init` detects the framework and adds missing Zenith files. It preserves your source, existing `Dockerfile`, and existing Compose files. Review the generated files against your app's real start command, port, dependencies, and data paths.
 
 In an empty directory, `init` offers a framework picker. You can select a starter explicitly:
 
@@ -48,11 +48,13 @@ cd my-app
 zenith init --template node
 ```
 
-Available starters are `node`, `express`, `nextjs`, `vite-react`, `python` (FastAPI), `flask`, `django`, `go`, and `static`. Use `--project <dir>` to work in another directory.
+Available starters are `node`, `express`, `nextjs`, `vite-react`, `python`, `flask`, `django`, `go`, and `php`. The `python` starter uses FastAPI. Use `fallback` for a generic starter. Use `--project <dir>` to work in another directory.
 
 <Warning>
-`zenith init --force` replaces generated `Dockerfile` and `zenith-compose.yml` files. Leave it off when adapting an existing app.
+`zenith init --force` overwrites `Dockerfile`, `zenith-compose.yml`, and `zenith.yaml`. Leave it off when adapting an existing app.
 </Warning>
+
+`init` can also normalize an existing `zenith.yaml` marked `generated: true` without `--force`.
 
 Read the [container guide](/content/containerise) and [Compose guide](/content/zenith-compose) when you need to change the generated files.
 
@@ -76,7 +78,7 @@ See [temporary deployments](/content/up) for lifetime, upload limits, secrets, l
 
 ## Publish when ready
 
-Commit and push your app to a public GitHub repository. Include a root `Dockerfile` and `zenith-compose.yml`, even if you use prebuilt images. Then start the publishing flow:
+Commit and push your app to a public GitHub repository. Include a root `zenith-compose.yml`. For `build: .`, include a root `Dockerfile` and the required app source. Then start the publishing flow:
 
 ```bash
 zenith publish
@@ -100,7 +102,7 @@ zenith logs --source runtime </dev/null
 zenith down </dev/null
 ```
 
-Choose the template that matches the app; `node` is only an example. Do not overwrite existing app behavior to fit a starter.
+Choose the template that matches the app. The `node` template is an example. Do not overwrite existing app behavior to fit a starter.
 
 `NO_COLOR=1` controls output. It does not disable every prompt or approve external actions. Omit `--verbose` and do not set `ZENITH_VERBOSE=1`, which enables animated output. Use explicit `--template` and publishing inputs instead of relying on terminal prompts.
 

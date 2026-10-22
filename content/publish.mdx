@@ -6,7 +6,7 @@ description: "Submit a public GitHub commit and marketplace listing for review, 
 
 `zenith publish` submits your app for review. It pins a full commit from a public GitHub repository, prepares the app listing, and returns a submission receipt. Submission is not immediate marketplace publication.
 
-Unlike `zenith up`, publishing uses source from GitHub, not your local files. If your app uses `build: .`, Zenith builds the pinned commit before submission. You do not need to push an app image to GHCR. Apps that use public, pullable images can also be submitted.
+Publishing reads the pinned commit from GitHub. If your app uses `build: .`, Zenith can reuse a successful preview image after verifying that its source matches that commit. Otherwise, Zenith builds the commit before submission. You do not need to push an app image to GHCR. Apps that use public, pullable images can also be submitted.
 
 ## Before you publish
 
@@ -17,12 +17,12 @@ Confirm that:
 - Your GitHub repository is public and you have permission to publish the app.
 - You have connected a GitHub account to Zenith that can access the repository.
 - The commit is pushed to GitHub and contains a root `zenith-compose.yml`.
-- That commit contains a root `Dockerfile`, even when the manifest uses only prebuilt images. For a built app, include all required source files too.
+- For `build: .`, the commit contains a root `Dockerfile` and all required app source. Image-only submissions do not require a Dockerfile.
 - Image-based services can be pulled without registry credentials.
 - You have accurate listing details and at least one real screenshot of the app.
 </Check>
 
-Test your app with [`zenith up`](/content/up) before publishing. The CLI warns if the publish commit differs from your last preview or if the preview included local changes. A preview is recommended, not required for submission. It does not prove that the separate GitHub build produces an identical image.
+Test your app with [`zenith up`](/content/up) before publishing. The CLI warns if the publish commit differs from your last preview or if the preview included local changes. A preview is recommended, not required for submission. Zenith verifies the source match before reusing a preview image. A preview URL alone does not prove that the selected commit was tested.
 
 ## Submit from your terminal
 
@@ -85,7 +85,7 @@ Use `--metadata` to supply a JSON listing instead of answering listing prompts. 
 
 Replace the example identity, email, and license with your own. Use one of these categories: `Business`, `Communication`, `Developer tools`, `Finance`, `Media`, `Productivity`, `Project management`, or `Security`.
 
-The description should be at most `300` characters and the detail at most `1,000` characters. The CLI reading the JSON file does not mean the listing has passed server validation.
+Keep the description within `300` characters and the detail within `1,000` characters. The CLI reading the JSON file does not mean the listing has passed server validation.
 
 Once the Developer Agreement has been accepted for the app, submit the listing with actual image files:
 
@@ -99,7 +99,7 @@ zenith publish \
 
 - Metadata, icon, and screenshot paths resolve from `--project`, which defaults to the current directory.
 - Icons and screenshots must be non-empty JPEG, PNG, or WebP files, no larger than `2 MiB` each.
-- Repeat `--screenshot` for multiple images. These replace the saved screenshots; the first becomes the cover.
+- Repeat `--screenshot` for multiple images. Replacement screenshots overwrite the saved set. The first becomes the cover.
 - Omit `--icon` to retain the icon in the metadata or saved listing.
 - An existing saved listing can supply screenshots when you do not pass replacements. A first submission needs at least one.
 
@@ -130,6 +130,8 @@ You can also view feedback in the [publishing dashboard](https://app.zenith.host
 </Visibility>
 
 ## Handle a failed submission
+
+Use the reported error to choose the next action:
 
 - **Sign-in or GitHub connection required:** complete the missing authorization, then retry.
 - **Commit or manifest not found:** push the selected commit and confirm that `zenith-compose.yml` is at its root.
