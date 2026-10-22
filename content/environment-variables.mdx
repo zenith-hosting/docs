@@ -1,0 +1,78 @@
+---
+title: "Configure environment variables and secrets"
+sidebarTitle: "Environment variables and secrets"
+description: "Map platform values, generate stable secrets, and expose app configuration to owners."
+---
+
+Use `x-zenith.env` to supply runtime settings and credentials to your app. Add the examples below to your existing manifest. Replace the variable and service names with those your app uses.
+
+Use the [public URL guide](/content/public-urls) for URL mappings and [SMTP email](/content/smtp-email) for outbound mail credentials.
+
+## Generate a stable secret
+
+Use `generate` with an RE2 pattern. Zenith creates the value once and keeps it for the life of the deployment.
+
+```yaml
+x-zenith:
+  env:
+    APP_SECRET:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      input:
+        label: App secret
+        secret: true
+```
+
+Keep the variable name stable after deployment. Changing the pattern does not rotate a stored value. Use one source per declaration: `generate`, `template`, or `alias`.
+
+## Build a value from other variables
+
+Use `template` to substitute `{NAME}` references on every render:
+
+```yaml
+x-zenith:
+  env:
+    API_URL:
+      template: '{ZENITH_PUBLIC_URL}/api'
+```
+
+## Restrict a value to selected services
+
+Add `services` to send a value only to the services that need it. Without `services`, Zenith sends the value to every service.
+
+```yaml
+x-zenith:
+  env:
+    DATABASE_PASSWORD:
+      generate: '([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})([A-Za-z0-9]{11})'
+      services:
+        - web
+        - database
+```
+
+An `x-zenith.env` value replaces a Compose `environment` entry with the same name in the services it targets.
+
+## Ask the app owner for a value
+
+Add `input` to expose a value in the deployment editor. Use `secret: true` for credentials. This example seeds the administrator email once from the owner's account:
+
+```yaml
+x-zenith:
+  env:
+    ADMIN_EMAIL:
+      input:
+        label: Administrator email
+        default_template: '{ZENITH_OWNER_EMAIL}'
+      services: [app]
+```
+
+`default_template` stores the first non-empty resolved value. It does not follow later changes to the owner's email. Use `alias` or `template` when a value must track its references instead.
+
+A required input must resolve during submission validation without owner-entered values. Supply a valid default or computed source when setting `required: true`.
+
+## Check the app's configuration
+
+Deploy the app and confirm that each service reads its intended settings. For a generated credential, restart the app and confirm that authentication still works.
+
+Before replacing a stored credential, update the account that uses it through your app's supported process. Changing an environment value alone does not change a password already stored in a database.
+
+See the [`env` reference](/content/zenith-compose-reference#env) for input validation, transforms, reserved names, and resolution rules.

@@ -69,6 +69,23 @@
               "content/zenith-compose-reference"
             ]
           },
+          "content/environment-variables",
+          "content/static-configuration"
+        ]
+      },
+      {
+        "group": "App integrations",
+        "pages": [
+          "content/smtp-email",
+          {
+            "group": "Sign in with Zenith",
+            "root": "content/sign-in-with-zenith",
+            "pages": [
+              "content/sign-in-with-zenith-reference"
+            ]
+          },
+          "content/public-urls",
+          "content/persistent-storage",
           "content/configuration-files"
         ]
       }

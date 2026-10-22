@@ -1,0 +1,49 @@
+---
+title: "Store app data and expose files"
+sidebarTitle: "Persistent storage and files"
+description: "Mount durable app data and choose which volumes owners can access through the file manager."
+---
+
+Mount a named volume where your app writes data that must survive restarts. Add `x-zenith.storage` metadata to describe that volume to Zenith.
+
+## Declare and mount the volume
+
+Add these blocks to your existing manifest. Replace `app` with your service name and `/app/uploads` with its data directory.
+
+<Warning>
+Keep database files, indexes, and credentials private. The following example enables owner file-manager access for uploaded files.
+</Warning>
+
+```yaml
+x-zenith:
+  storage:
+    uploads:
+      volume: app_uploads
+      label: Uploaded files
+      description: Images and documents uploaded by app users.
+      public: true
+
+services:
+  app:
+    volumes:
+      - app_uploads:/app/uploads
+
+volumes:
+  app_uploads:
+```
+
+## Keep app data across restarts
+
+Configure your app to write uploads to the mounted directory. Preserve existing files when the app starts.
+
+Create a test upload, restart the app, and confirm that the app can still read the file.
+
+## Choose which files owners can access
+
+Set `public: true` for a volume that the owner can browse through the file manager. Omit `public` or set it to `false` to keep the volume private.
+
+The `public` field controls owner file-manager access. It does not publish files to the internet.
+
+For a specific editable settings file, use [configuration files](/content/configuration-files). You can expose that editor while keeping the volume private.
+
+See the [`storage` reference](/content/zenith-compose-reference#storage) for field and volume validation rules.

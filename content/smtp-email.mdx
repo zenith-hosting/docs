@@ -1,0 +1,58 @@
+---
+title: "Send email with SMTP"
+sidebarTitle: "SMTP email"
+description: "Send app email through Zenith's authenticated SMTP relay with deployment-scoped credentials."
+---
+
+Send verification emails, password resets, and notifications through Zenith's SMTP relay. You do not need a separate email-provider account.
+
+Before you start, identify your app's SMTP settings and every service that sends mail. For processes running on your laptop, use a local mail catcher or another reachable SMTP service.
+
+## Map your app's mail settings
+
+Add these mappings to your existing `x-zenith.env`. Replace the names on the left with the settings your app reads.
+
+In each `services` list, include every service that sends mail. For example, use `[app, worker]` if both services send messages.
+
+```yaml
+x-zenith:
+  env:
+    SMTP_HOST:
+      alias: ZENITH_SMTP_HOST
+      services: [app]
+    SMTP_PORT:
+      alias: ZENITH_SMTP_PORT
+      services: [app]
+    SMTP_USERNAME:
+      alias: ZENITH_SMTP_USER
+      services: [app]
+    SMTP_PASSWORD:
+      alias: ZENITH_SMTP_PASS
+      services: [app]
+    SMTP_FROM:
+      alias: ZENITH_SMTP_FROM
+      services: [app]
+    SMTP_FROM_NAME:
+      alias: ZENITH_SMTP_DISPLAY
+      services: [app]
+```
+
+Enable your app's SMTP mailer and configure it to read these environment variables.
+
+## Configure the SMTP connection
+
+Use SMTP authentication and STARTTLS on port `587`. Set your app's TLS option according to its configuration format. Port `587` uses STARTTLS rather than an implicit TLS connection.
+
+Use the supplied sender address and display name. The relay rewrites sender identity to identify the originating deployment. A custom domain does not give your app an arbitrary email sender address.
+
+Keep credentials on the app server. Use aliases so your app receives the current values on each render. Do not copy credentials into source files, browser bundles, or static config content.
+
+## Check that mail works
+
+Trigger a real app action such as a password reset. Confirm that the app queues or sends the message and that it reaches a mailbox you control. If a worker sends mail, check that it receives the same mappings as the web service.
+
+If mail does not arrive, check that the app enables its SMTP mailer and uses authentication, STARTTLS, and the supplied sender address. Confirm that the service that sends mail receives the credentials.
+
+Do not log passwords or connection strings that contain credentials.
+
+See the [SMTP built-ins](/content/zenith-compose-reference#built-ins) for connection values. If your app requires a mailer connection string, use [`urlencode`](/content/zenith-compose-reference#transform) on each credential component.

@@ -1,0 +1,85 @@
+---
+title: "Mount static configuration files"
+sidebarTitle: "Static configuration files"
+description: "Mount read-only, non-secret configuration files with inline Compose configs."
+---
+
+Mount a fixed configuration file with Compose `configs`. Use a named volume and [editable configuration files](/content/configuration-files) if the app or its owner must change the file.
+
+<Warning>
+Keep passwords, tokens, and private keys out of `configs.content`. Use [environment variables and secrets](/content/environment-variables) for credentials.
+</Warning>
+
+## Declare the file and mount it
+
+This complete example runs Gatus with a status check and persistent SQLite history:
+
+```yaml zenith-compose.yml
+x-zenith:
+  catalog:
+    name: Gatus
+    description: Monitor endpoints and publish a status page.
+    authors:
+      - TwiN
+    tags:
+      - monitoring
+    source: https://github.com/TwiN/gatus
+    license: Apache-2.0
+  expose:
+    - service: gatus
+      port: 8080
+      web: true
+  storage:
+    history:
+      volume: gatus_data
+      label: Monitor history
+      description: SQLite history of endpoint checks.
+
+services:
+  gatus:
+    image: ghcr.io/twin/gatus:v5.36.0
+    environment:
+      GATUS_CONFIG_PATH: /config/config.yaml
+    configs:
+      - source: gatus-config
+        target: /config/config.yaml
+        mode: 0444
+    volumes:
+      - gatus_data:/data
+    ports:
+      - "8080:8080"
+
+configs:
+  gatus-config:
+    content: |
+      storage:
+        type: sqlite
+        path: /data/data.db
+      endpoints:
+        - name: cloudflare
+          url: https://www.cloudflare.com
+          interval: 60s
+          conditions:
+            - "[STATUS] == 200"
+
+volumes:
+  gatus_data:
+```
+
+Gatus reads `/config/config.yaml` from a read-only config mount. Its check history stays on the separate `gatus_data` volume. Only services that reference `gatus-config` receive the file.
+
+Use inline `content` for the file contents. File-backed and external config sources are unsupported. See [Compose configs](/content/zenith-compose-reference#compose-configs) for supported fields and defaults.
+
+<Note>
+Standard Compose `configs` is a top-level map next to `services`. Use `x-zenith.configs` for files users can edit in Zenith.
+</Note>
+
+## Apply config changes
+
+When Zenith applies an updated config definition, it restarts the services that consume the changed content. It does not update a running process's mounted file in place. Pushing a Git commit does not automatically update an existing deployment.
+
+## Preserve environment references
+
+Zenith does not substitute `x-zenith.env` values into config content. If your app expands environment variables itself, write `$$` to preserve a literal `$` through Compose loading.
+
+For runtime-generated content, keep the app's startup code that creates the file. For writable configuration, use a named volume.

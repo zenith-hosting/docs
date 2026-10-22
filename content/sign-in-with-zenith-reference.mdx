@@ -1,0 +1,82 @@
+---
+title: "Sign in with Zenith reference"
+sidebarTitle: "Reference"
+description: "Compose fields, credentials, protocol limits, and access rules for Zenith OpenID Connect."
+---
+
+`x-zenith.sign_in` defines callback paths and optional owner account linking. The app must configure its own OIDC client.
+
+| Field | Type | Required | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `redirect_paths` | list of strings | Yes, when `sign_in` is present | None | One to eight unique, exact callback paths starting with `/`. |
+| `owner_id_env` | string | No | Unset | Name of a plain `x-zenith.env` input used to seed the owner's local account ID on fresh deployments. |
+
+## Callback paths
+
+Callback paths are root-relative, such as `/auth/zenith/callback`. Zenith combines each path with the deployment's canonical Zenith origin and any verified custom-domain origin. Unverified domains are excluded. The authorization request must use an exact registered redirect URI.
+
+Paths cannot contain a different origin, a leading `//`, wildcards, backslashes, whitespace, queries, or fragments. Encoded wildcards, backslashes, control characters, and leading `//` also fail validation. An empty list or duplicate path fails validation.
+
+Zenith uses the current catalogue name and callback paths for automatic registration. Explicit client registration overrides those values for that deployment. Credentials alone do not enable authorization without configured callbacks.
+
+## Owner account linking
+
+`owner_id_env` names the input that supplies the initial local account ID. The following declaration uses the same ID as the owner's OIDC `sub`:
+
+```yaml
+x-zenith:
+  sign_in:
+    redirect_paths: [/auth/zenith/callback]
+    owner_id_env: APP_ADMIN_ID
+  env:
+    APP_ADMIN_ID:
+      input:
+        label: Administrator ID
+        default_template: '{ZENITH_CUSTOMER_ID}'
+      services: [app]
+```
+
+The named declaration must have `input`. It cannot have `generate`, `template`, `alias`, or `transform`. An undeclared name or a computed or transformed input fails validation. `input.default_template` is allowed.
+
+For a fresh deployment, Zenith pins this input to the owner's immutable Zenith customer ID. Configuration changes cannot replace that pinned value. Existing administrator identifiers are preserved. Zenith does not create the local account or link it to the OIDC subject.
+
+## OIDC credentials
+
+OIDC built-ins resolve independently of `sign_in`. Authorization requires configured callbacks. An `x-zenith.env` alias injects a built-in into the declared services.
+
+| Built-in | Value |
+| --- | --- |
+| `ZENITH_OIDC_ISSUER` | Zenith OIDC issuer. |
+| `ZENITH_OIDC_CLIENT_ID` | Deployment-scoped confidential client ID. |
+| `ZENITH_OIDC_CLIENT_SECRET` | Deployment-scoped client secret. Stable across environment renders. A deployment reset creates a new secret. |
+| `ZENITH_OIDC_OWNER_SUB` | Immutable Zenith customer ID of the deployment owner. |
+
+## Protocol and claims
+
+Discovery is available at the issuer followed by `/.well-known/openid-configuration`. The discovery document advertises the authorization, token, userinfo, and JWKS endpoints.
+
+| Setting | Supported value |
+| --- | --- |
+| Grant type | `authorization_code`. |
+| Response type | `code`. |
+| PKCE challenge method | `S256`, required. |
+| Token endpoint authentication | `client_secret_basic` or `client_secret_post`. |
+| ID token signature | `RS256`. |
+| Authorization code lifetime | Five minutes, single use. |
+| Access token lifetime | 15 minutes. |
+| ID token lifetime | Ten minutes. |
+| Refresh tokens | Unsupported. |
+
+| Scope | Claims |
+| --- | --- |
+| `openid` | Required. `sub` is the stable Zenith customer ID. |
+| `email` | `email`, `email_verified`. |
+| `profile` | `name`, `preferred_username`. |
+
+The provider does not issue app roles, groups, or permissions. These credentials identify users to your app and do not grant access to Zenith management APIs.
+
+## Access and consent
+
+The owner has access by default. Additional members must be existing verified Zenith accounts explicitly added by the owner. Users consent before Zenith shares their identity. `prompt=none` succeeds only with an allowed signed-in account and matching remembered consent.
+
+Removing a member revokes their Zenith grants and remembered consent. Adding them again requires fresh consent. Removing a member does not end local app sessions or revoke app passwords and tokens.

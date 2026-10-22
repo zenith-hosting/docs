@@ -1,0 +1,66 @@
+---
+title: "Configure public URLs and domains"
+sidebarTitle: "Public URLs and domains"
+description: "Expose HTTP endpoints and configure app base URLs, allowed hosts, and verified custom domains."
+---
+
+Configure your app to use its deployment URL for redirects and absolute links. Add the deployment hostnames to its allowed-host list.
+
+Before you start, identify the HTTP service, its container port, and the settings your app uses for its base URL.
+
+## Expose the main HTTP service
+
+Add an entry without `label` for the main hostname and custom-domain target. Replace `app` and `3000` with your service name and container port. Configure your app to listen on `0.0.0.0`.
+
+```yaml
+x-zenith:
+  expose:
+    - service: app
+      port: 3000
+      web: true
+  env:
+    APP_URL:
+      alias: ZENITH_PUBLIC_URL
+      services: [app]
+    APP_ALLOWED_HOSTS:
+      alias: ZENITH_PUBLIC_HOSTNAMES
+      services: [app]
+```
+
+Replace `APP_URL` and `APP_ALLOWED_HOSTS` with your app's environment variable names. Adapt the comma-separated hostname list if your app expects another format.
+
+Zenith terminates TLS at the HTTP ingress. `web: false` does not create a raw TCP or UDP endpoint. See the [`expose` reference](/content/zenith-compose-reference#expose) for all fields.
+
+## Track verified domain changes
+
+Use `ZENITH_PUBLIC_URL` for the base URL and `ZENITH_PUBLIC_HOSTNAMES` for a hostname allowlist. See the [URL built-ins](/content/zenith-compose-reference#built-ins) for variants with ports and multiple URLs.
+
+An unverified custom domain does not replace the public URL. Aliases and templates resolve again when Zenith renders the deployment, so they track verified domain changes. A stored `input.default_template` keeps its initial value instead.
+
+## Add a labelled endpoint
+
+Use a unique `label` for an additional HTTP endpoint. This example exposes an API alongside the main app:
+
+```yaml
+x-zenith:
+  expose:
+    - service: app
+      port: 3000
+      web: true
+    - service: api
+      port: 8080
+      label: api
+      web: true
+  env:
+    API_URL:
+      alias: ZENITH_PUBLIC_URL_API
+      services: [app]
+```
+
+A labelled endpoint has its own canonical Zenith URL. Use `ZENITH_PUBLIC_URL_<LABEL>` instead of constructing its hostname. Convert the label to uppercase and replace hyphens with underscores. For example, `admin-api` becomes `ZENITH_PUBLIC_URL_ADMIN_API`.
+
+## Check redirects and host validation
+
+Open the returned deployment URL and check generated links and redirects. If you use a verified custom domain, repeat the checks there. Configure your app to accept the intended hostnames and use the correct public URL for callbacks.
+
+For Zenith identity callbacks on either origin, follow [Sign in with Zenith](/content/sign-in-with-zenith).

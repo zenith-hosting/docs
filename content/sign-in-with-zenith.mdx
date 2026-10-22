@@ -1,0 +1,77 @@
+---
+title: "Add Sign in with Zenith"
+sidebarTitle: "Sign in with Zenith"
+description: "Configure your app's OpenID Connect client to authenticate users with Zenith."
+---
+
+Connect your app's OpenID Connect client to Zenith. Your app must support the authorization code flow with S256 PKCE and server-side client authentication.
+
+## Register callbacks and map credentials
+
+Add these blocks to your existing `x-zenith` configuration. Replace `/auth/zenith/callback`, the `APP_*` names, and the `app` service with your app's values:
+
+```yaml
+x-zenith:
+  sign_in:
+    redirect_paths: [/auth/zenith/callback]
+  env:
+    APP_OIDC_ISSUER:
+      alias: ZENITH_OIDC_ISSUER
+      services: [app]
+    APP_OIDC_CLIENT_ID:
+      alias: ZENITH_OIDC_CLIENT_ID
+      services: [app]
+    APP_OIDC_CLIENT_SECRET:
+      alias: ZENITH_OIDC_CLIENT_SECRET
+      services: [app]
+```
+
+Keep the client secret on the app server. Include only the services that need the secret in its `services` list.
+
+Declare one to eight unique callback paths starting with `/`. Zenith registers those paths on the deployment's Zenith origin and verified custom-domain origin. Full URLs, wildcards, queries, and fragments are invalid.
+
+## Configure the OIDC client
+
+Use your app's OIDC library to configure the authorization flow:
+
+1. Load discovery from the supplied issuer followed by `/.well-known/openid-configuration`.
+2. Request the `openid` scope. Add `email` and `profile` if your app needs those claims.
+3. Generate `state`, `nonce`, and a PKCE verifier for the browser session. Send an S256 code challenge with the authorization request.
+4. On the callback, verify `state`. Exchange the code server-side with the same redirect URI and PKCE verifier. Authenticate with `client_secret_basic` or `client_secret_post`.
+5. Validate the ID token's signature, issuer, audience, expiry, and original nonce. Use the issuer's JWKS to verify the signature.
+6. Identify the local account by the validated `sub` claim. Create your app's own session.
+
+Use the exact registered redirect URI. See the [OIDC reference](/content/sign-in-with-zenith-reference#protocol-and-claims) for supported claims and token lifetimes.
+
+## Link the owner's initial account
+
+If your app creates an administrator account before the first sign-in, set its local account ID to the owner's OIDC subject. Add `owner_id_env` and its input alongside the credential aliases:
+
+```yaml
+x-zenith:
+  sign_in:
+    redirect_paths: [/auth/zenith/callback]
+    owner_id_env: APP_ADMIN_ID
+  env:
+    APP_ADMIN_ID:
+      input:
+        label: Administrator ID
+        default_template: '{ZENITH_CUSTOMER_ID}'
+      services: [app]
+```
+
+Replace `APP_ADMIN_ID` with the variable your app uses to create the administrator account. The declaration must have `input` and cannot have `generate`, `template`, `alias`, or `transform`.
+
+On a fresh deployment, Zenith pins this input to the owner's immutable customer ID. Existing administrator identifiers remain unchanged. Your app must create and link the local account with that ID.
+
+If your app handles account creation or linking through its OIDC client, omit `owner_id_env`.
+
+## Check sign-in and access
+
+Open the deployed app and sign in with the deployment owner's Zenith account. Complete consent and confirm that the app opens the expected local account.
+
+The owner has access by default. To allow another user, add that user's existing verified Zenith account to the deployment's membership. Then confirm that the user can sign in and receives the intended app permissions.
+
+Assign roles and permissions inside your app. If you remove a member's Zenith access, also end that user's local sessions and revoke app credentials through your app's supported process.
+
+See the [access and consent reference](/content/sign-in-with-zenith-reference#access-and-consent) for grant revocation and remembered consent behavior.
