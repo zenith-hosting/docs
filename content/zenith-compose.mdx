@@ -8,7 +8,7 @@ description: "Prepare your app's Compose file with the CLI, test a temporary pre
 Start with `zenith init`, check your project with `zenith check`, and use `zenith up` for temporary testing. When you are ready to submit for review, `zenith publish` can build your app from a pinned public GitHub commit. You do not need to publish your own app image first.
 
 <Info>
-This page covers the fields most apps need. Use the [complete `zenith-compose.yml` reference](/content/zenith-compose-reference) for the shared schema and published runtime behavior. The [preview policy](/content/zenith-compose-reference#preview-policy) is stricter; not every field on this page works with `zenith check` or `zenith up`.
+This page covers the fields most apps need. Use the [complete `zenith-compose.yml` reference](/content/zenith-compose-reference) for the shared schema and published runtime behavior. For source-build constraints, see the [preview policy](/content/zenith-compose-reference#preview-policy).
 </Info>
 
 <Visibility for="agents">
@@ -42,9 +42,9 @@ Install and sign in using the [quickstart](/content/quickstart), then work from 
   </Step>
 </Steps>
 
-For previews, define exactly one app service with `build: .` and a project-root `Dockerfile`, plus up to four dependencies using public images. Expose the built HTTP app through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile must `EXPOSE` that port.
+For previews, define exactly one app service with `build: .` and a project-root `Dockerfile`, plus dependencies using public images. Expose the built HTTP app through a primary `x-zenith.expose` entry with `web: true` and no `label`. The Dockerfile can omit `EXPOSE`.
 
-Do not add an `image` alongside `build` on the preview app. Preview policy rejects alternate Dockerfiles, remote build contexts, build arguments, targets, platforms, and resource/deploy overrides. It also rejects `x-zenith.env` and `x-zenith.storage`; named Compose volumes remain supported. See the [preview policy](/content/zenith-compose-reference#preview-policy) before adapting published examples.
+Do not add an `image` alongside `build` on the preview app. Preview policy rejects alternate Dockerfiles, remote build contexts, build arguments, targets, and build platforms. Previews support `x-zenith.env`, `x-zenith.storage`, and `x-zenith.configs`. See the [preview policy](/content/zenith-compose-reference#preview-policy) before adapting published examples.
 
 ## Create the file
 
@@ -69,7 +69,6 @@ x-zenith:
   expose:
     - service: privatebin
       port: 8080
-      label: web
       web: true
   storage:
     data:
@@ -90,24 +89,11 @@ volumes:
   privatebin_data:
 ```
 
-The schema requires `services` and `x-zenith`. Inside `x-zenith`, `catalog` requires `name`, `description`, `authors`, `tags`, `source`, and `license`; `expose` must contain at least one entry. The remaining catalogue fields and blocks are optional.
+The schema requires `services` and `x-zenith`. Inside `x-zenith`, `catalog` requires `name`, `description`, `authors`, `tags`, `source`, and `license`; `expose` must contain at least one entry. The remaining catalogue fields and top-level `x-zenith` blocks are optional.
 
 ## Configure the listing
 
-Set the catalogue metadata in `catalog`. The schema requires every field marked **Yes**.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | Yes | App name. |
-| `description` | string | Yes | Short app description. |
-| `authors` | list of strings | Yes | One or more unique author names. |
-| `tags` | list of strings | Yes | One or more unique tags. |
-| `source` | URI | Yes | Source repository or project URL. |
-| `license` | string | Yes | License identifier or name. |
-| `alternatives` | list of strings | No | Comparable apps. |
-| `detail` | string | No | Additional catalogue detail. About 3-5 sentences long. |
-| `funding` | URI | No | Funding URL. |
-| `website` | URI | No | Project website. |
+Set the catalogue metadata in `catalog`. Include `name`, `description`, `authors`, `tags`, `source`, and `license`. Use accurate project details and the app's actual license. See the [`catalog` reference](/content/zenith-compose-reference#catalog) for optional fields.
 
 ## Expose a service
 
@@ -121,37 +107,11 @@ x-zenith:
       web: true
 ```
 
-Each entry has these fields:
-
-| Field | Value |
-| --- | --- |
-| `service` | Compose service name. Required. |
-| `port` | Service port from `1` through `65535`. Required. |
-| `label` | Optional route label. It must start with a lowercase letter or digit and contain only lowercase letters, digits, and hyphens. |
-| `web` | Boolean marker for whether the service is user-facing. Required, even when `false`. |
-| `forward_auth` | Optional boolean. Defaults to `false`. Requires the deployment owner's Zenith sign-in for this endpoint when enabled. See the availability note below. |
+Use an entry without `label` for the primary endpoint. Add a unique `label` for each additional endpoint. Set `web` explicitly, even when its value is `false`.
 
 ### Add forward authentication
 
-For an app that has no authentication of its own, the proposed `forward_auth` option adds a Zenith sign-in check before requests reach an exposed HTTP endpoint. Set it on the individual `expose` entry, not on `x-zenith` or the Compose service:
-
-```yaml
-x-zenith:
-  expose:
-    - { service: affine, port: 3010, web: true, forward_auth: true }
-```
-
-This example shows the `expose` block only. Keep your app's `catalog`, `services`, environment, and storage definitions.
-
-Visitors who are not signed in see Zenith's login page. An incorrect password stays on that page with an error. The deployment owner can continue to the app. A different signed-in account sees access denied. This does not create or sign into an account inside your app.
-
-The option defaults to `false`, so existing manifests keep their current behavior. Configure each endpoint separately. A labelled API endpoint does not inherit another endpoint's setting, even if both route to the same service. A verified custom domain inherits the primary endpoint's setting, which is the entry with no `label`.
-
-<Warning>
-Check every route that exposes private data. Leaving another endpoint unprotected can expose the same app through that hostname. Do not protect an endpoint that must accept unauthenticated webhooks or public API traffic. Setting `web: false` does not bypass forward authentication.
-</Warning>
-
-Development preview sessions do not support `forward_auth: true`. Ordinary Docker Compose ignores `x-zenith`, so local Compose startup does not test this access check. See the [forward authentication reference](/content/zenith-compose-reference#forward-authentication) for request behavior and limits.
+To require the deployment owner's Zenith account before requests reach an endpoint, follow [Protect an app with forward authentication](/content/forward-authentication). Configure app accounts separately if the app also has its own login.
 
 ## Add deployment variables
 
@@ -181,7 +141,7 @@ Follow [Expose configuration files](/content/configuration-files) to create the 
 
 ## Check the file locally
 
-Ask Docker Compose to parse the file:
+Parse the Compose model locally:
 
 ```bash
 docker compose -f zenith-compose.yml config
@@ -196,7 +156,7 @@ docker compose -f zenith-compose.yml up -d
 These optional Docker Compose commands test the Compose model and the app locally. They do not reproduce Zenith's environment resolution or replace `zenith check` and `zenith up` for preview-compatible projects. Image-only published manifests can be valid even when they fail the stricter preview check. Zenith validates the published app again during submission.
 
 <Check>
-Continue when Compose parses the file without errors, every service stays running, and each exposed service answers on its declared port.
+Continue when Compose parses the file without errors, required services reach their expected state, and each exposed service answers on its declared port.
 </Check>
 
 ## Zenith runtime restrictions
@@ -220,9 +180,9 @@ Avoid `cap_add` unless your app needs a specific Linux capability. Some capabili
 
 ## Publish the file
 
-Commit and push `zenith-compose.yml` at the repository root of a public GitHub repository. The file must be non-empty and no larger than `128 KiB`. Include a root `Dockerfile` even for image-only manifests. For `build: .`, include the required app source too.
+Commit and push `zenith-compose.yml` at the repository root of a public GitHub repository. The file must be non-empty and no larger than `128 KiB`. For `build: .`, include a root `Dockerfile` and the required app source. Image-only submissions do not require a Dockerfile.
 
-`zenith publish` selects local `HEAD` by default, or you can supply a full 40-character SHA with `--commit`. The selected commit must be available on GitHub; it is not required to be the current default-branch commit.
+`zenith publish` selects local `HEAD` by default, or you can supply a full 40-character SHA with `--commit`. The selected commit must be available on GitHub. It does not need to be the current default-branch commit.
 
 After sign-in, GitHub connection, Developer Agreement acceptance, and explicit authorization to submit, run:
 
@@ -231,7 +191,7 @@ zenith publish --commit "$(git rev-parse HEAD)"
 zenith publish status
 ```
 
-Zenith builds the pinned GitHub commit when the manifest uses `build: .`. The CLI waits for that build before submitting for review. A manifest using pullable images can still be published without this build. A local preview does not prove the published image is identical: publishing uses GitHub, not the preview upload.
+For `build: .`, Zenith reuses a successful preview image when its verified source matches the pinned commit. Otherwise, Zenith builds that commit. The CLI waits for the image before submitting for review. Apps that use public images can be submitted without this build.
 
 Submission enters review, not immediate publication. Later Git pushes do not automatically update the submission or an existing deployment. See [publish your app](/content/publish) for listing metadata, screenshots, and revision commands.
 

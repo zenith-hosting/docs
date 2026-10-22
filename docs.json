@@ -84,6 +84,7 @@
               "content/sign-in-with-zenith-reference"
             ]
           },
+          "content/forward-authentication",
           "content/public-urls",
           "content/persistent-storage",
           "content/configuration-files"

@@ -13,16 +13,19 @@ The site is built with [Mintlify](https://mintlify.com). Pages are MDX files, an
 - `../zenith/internal/xzenith/validate.go` defines intrinsic validation.
 - `../zenith/internal/kubernetes2/transform/validator.go` validates a full app proposal.
 - `../zenith/internal/xzenith/ENV.md` defines environment resolution.
+- `../zenith/contract/zenith-compose.schema.json` defines the public JSON Schema.
+- `../zenith/contract/zenith-dev-compose.schema.json` adds preview source-build constraints.
+- `../zenith/internal/devpublish/artifacts.go` defines publish builds and preview image reuse.
 
 ## Preview the site
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
+Install the [Mintlify CLI](https://www.npmjs.com/package/mint):
 
 ```bash
 npm i -g mint
 ```
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+From the repository root, start the preview:
 
 ```bash
 mint dev
@@ -31,6 +34,8 @@ mint dev
 View your local preview at `http://localhost:3000`.
 
 ## Check a change
+
+Validate the site and check internal links:
 
 ```bash
 mint broken-links
