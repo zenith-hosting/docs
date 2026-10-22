@@ -320,7 +320,7 @@ Gatus reads `/config/config.yaml` from a read-only config mount. Its check histo
 Zenith supports inline `content`, short service references, and long references with `source`, `target`, and optional `mode`. File-backed and external config sources are unsupported. See [Compose configs](/content/zenith-compose-reference#compose-configs) for defaults and validation rules.
 
 <Note>
-Standard Compose `configs` is a top-level map next to `services`. It is not the reserved `x-zenith.configs` metadata block.
+Standard Compose `configs` is a top-level map next to `services`. Use `x-zenith.configs` for files users can edit in Zenith.
 </Note>
 
 When Zenith applies an updated config definition, it restarts the services that consume the changed content. It does not update a running process's mounted file in place. Pushing a Git commit does not automatically update an existing deployment.
@@ -330,6 +330,12 @@ Do not put passwords, tokens, or private keys in `configs.content`. Use deployme
 </Warning>
 
 If your app supports its own environment expansion in config files, declare its variables and write `$$` wherever Compose must preserve a literal `$` for the app. Keep a startup adapter when you need runtime-generated content or a writable config file. Keep database setup and dependency health checks separate from static file delivery.
+
+## Expose editable configuration files
+
+Use `x-zenith.configs` to give app owners an editor for a specific file in a named volume. The volume can stay private. Applying a change saves the file and requests an app restart.
+
+Follow [Expose configuration files](/content/configuration-files) to create the file, make it editable, and keep changes across restarts.
 
 ## Check the file locally
 

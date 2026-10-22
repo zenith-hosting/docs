@@ -1,0 +1,65 @@
+---
+title: "Expose configuration files"
+description: "Let users edit your app's configuration files in Zenith."
+---
+
+Add a file to `x-zenith.configs` so users can edit it in Zenith. When they apply a change, Zenith saves the file and restarts the app.
+
+## 1. Create the file in your app
+
+Your app must create its starting configuration when the file is missing. Store it in a volume so it survives restarts.
+
+For example, your app could read its settings from `/config/app.yml`. On first launch, create that file with your default settings. On later launches, use the existing file so you keep the user's changes.
+
+## 2. Add it to `zenith-compose.yml`
+
+Add the following fields to your existing file. Replace `app` with your service name and use the folder and filename your app reads. Keep your existing image, catalogue, endpoint, and other settings.
+
+```yaml zenith-compose.yml
+services:
+  app:
+    volumes:
+      - settings:/config
+
+volumes:
+  settings:
+
+x-zenith:
+  storage:
+    settings:
+      volume: settings
+      label: App settings
+  configs:
+    - storage: settings
+      path: /app.yml
+      label: App configuration
+      type: yaml
+```
+
+Here's how the paths work:
+
+- `settings:/config` puts the volume at `/config` inside your app.
+- `storage: settings` chooses that volume through its `x-zenith.storage` entry.
+- `path: /app.yml` points to `/config/app.yml` inside your app. The path starts at the volume's root, so leave out `/config`.
+
+The volume stays private by default. Users can edit the file you declare without browsing the rest of the volume. You do not need `public: true`.
+
+Set `type` to your file format, such as `yaml`, `json`, `ini`, or `toml`, for syntax highlighting. You can also leave it out and let Zenith use the filename extension.
+
+<Warning>
+Do not replace the file with default settings every time your app starts. That would erase the user's edits after a restart. Add comments to the file explaining any settings users must not change.
+</Warning>
+
+## 3. Check that changes work
+
+<Visibility for="humans">
+
+Open your deployment's **Configuration** section. Select the file, change a setting, and choose **Apply & restart**.
+
+</Visibility>
+
+Check that your app uses the new setting after restarting. Restart it again and check that the change is still there.
+
+Zenith edits text files. It does not check whether the settings are valid for your app. Invalid settings can stop your app from starting.
+
+For all fields and file restrictions, see the [`configs` reference](/content/zenith-compose-reference#configs).
