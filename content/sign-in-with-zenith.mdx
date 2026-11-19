@@ -8,21 +8,12 @@ Connect your app's OpenID Connect client to Zenith. Your app must support the au
 
 ## Choose a client type
 
-Each deployment has one OIDC client. Choose its type by where your app exchanges the authorization code for tokens.
+Each deployment has one OIDC client. Its type depends on where your app exchanges the authorization code for tokens.
 
-| | Confidential (default) | Public |
-| --- | --- | --- |
-| Exchanges the code | Your app's server | Your app on the user's device |
-| Client authentication | `client_secret_basic` or `client_secret_post`, plus PKCE | None, PKCE only |
-| Redirects | Callback paths on the deployment | Callback paths and exact app redirect URIs |
-| Remembered consent | Later sign-ins skip the consent page | Every sign-in shows the consent page |
-| `x-zenith` | `redirect_paths` and a client secret alias | `redirect_paths` and `native_redirect_uris`, no secret alias |
+- If your server exchanges the code, keep the default confidential client. This covers mobile apps that open your server's login page and receive a session from your server.
+- If your mobile or desktop app exchanges the code itself, use a public client. Apps built on AppAuth or a similar library usually work this way. They receive the issuer and client ID from your server and register a custom URL scheme as the redirect.
 
-Use a confidential client when your server completes every sign-in. This includes mobile apps that open your server's login page and receive a session from your server.
-
-Use a public client only when your mobile or desktop app calls the token endpoint itself. For example, your app uses AppAuth or a similar library, receives the issuer and client ID from your server, and registers a custom URL scheme as its redirect.
-
-A deployment can't have both types. A public client also applies to your web server, so your server must sign in without a client secret.
+A deployment can't have both types. A public client applies to your web server too, so your server must sign in without a client secret. See [client types](/content/sign-in-with-zenith-reference#client-types) for a full comparison.
 
 ## Register callbacks and map credentials
 
@@ -81,15 +72,15 @@ x-zenith:
       services: [app]
 ```
 
-Replace `myapp://oidc/callback` with the redirect URI your app registers. Declaring the field makes the deployment's client public:
+Replace `myapp://oidc/callback` with the redirect URI your app registers. Declaring the field makes the deployment's client public. Then update your web server and your app:
 
-- The token endpoint accepts requests without client authentication. It rejects requests that send a client secret, including from your web server.
-- PKCE with S256 remains required. Send the PKCE verifier with every code exchange.
-- Every sign-in shows the consent page. A request with `prompt=none` returns `consent_required`.
-- Zenith doesn't issue refresh tokens. Start a new authorization request when tokens expire.
+1. Remove the client secret from your web server's OIDC configuration. Zenith rejects any token request that sends a client secret.
+2. Send the S256 PKCE challenge with every authorization request and the verifier with every code exchange.
+3. Don't rely on `prompt=none` for silent sign-in. Zenith returns `consent_required` because a public client shows the consent page on every sign-in.
+4. When tokens expire, start a new authorization request. Zenith doesn't issue refresh tokens.
 
 <Warning>
-Another app on the device can register the same URL scheme. PKCE stops it from redeeming your app's authorization code, and the consent page shows the user every sign-in. Don't treat a public client's sign-in as proof of which app made the request.
+Another app on the device can register the same URL scheme and start its own sign-in. PKCE stops that app from redeeming your app's authorization code. Zenith shows the consent page on every sign-in, so the user sees each request. Don't treat a public client's sign-in as proof of which app made the request.
 </Warning>
 
 See the [app redirect URI reference](/content/sign-in-with-zenith-reference#app-redirect-uris) for the allowed formats.

@@ -12,6 +12,21 @@ description: "Compose fields, credentials, protocol limits, and access rules for
 | `native_redirect_uris` | list of strings | No | Unset | One to eight unique, exact redirect URIs for a mobile or desktop app. Setting it makes the deployment's client public. |
 | `owner_id_env` | string | No | Unset | Name of a plain `x-zenith.env` input used to seed the owner's local account ID on fresh deployments. |
 
+## Client types
+
+Each deployment has one OIDC client. `native_redirect_uris` sets its type.
+
+| Property | Confidential | Public |
+| --- | --- | --- |
+| Set by | Default | `native_redirect_uris` |
+| Exchanges the code | The app's server | The app on the user's device |
+| Token endpoint authentication | `client_secret_basic` or `client_secret_post` | `none`. A request that sends a client secret fails. |
+| PKCE `S256` | Required | Required |
+| Redirect URIs | Callback paths on the deployment's origins | Callback paths and the declared app redirect URIs |
+| Remembered consent | Used | Never used |
+| `prompt=none` | Succeeds with remembered consent | Returns `consent_required` |
+| `ZENITH_OIDC_CLIENT_SECRET` | Accepted | Rejected |
+
 ## Callback paths
 
 Callback paths are root-relative, such as `/auth/zenith/callback`. Zenith combines each path with the deployment's canonical Zenith origin and any verified custom-domain origin. Unverified domains are excluded. The authorization request must use an exact registered redirect URI.
@@ -26,7 +41,7 @@ Zenith uses the current catalogue name and callback paths for automatic registra
 
 The scheme must be lowercase and can't be `http`, `https`, `ws`, `wss`, `ftp`, `file`, `data`, `javascript`, `vbscript`, `about`, or `blob`. URIs can't contain user information, queries, fragments, wildcards, backslashes, or whitespace. A URI needs a host or a path after the scheme. An empty list, more than eight URIs, or a duplicate URI fails validation.
 
-When this field is set, the client is public. See [Access and consent](#access-and-consent) for how this changes consent.
+Setting `native_redirect_uris` makes the client public. See [Client types](#client-types).
 
 ## Owner account linking
 
