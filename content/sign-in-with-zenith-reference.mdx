@@ -4,11 +4,12 @@ sidebarTitle: "Reference"
 description: "Compose fields, credentials, protocol limits, and access rules for Zenith OpenID Connect."
 ---
 
-`x-zenith.sign_in` defines callback paths and optional owner account linking. The app must configure its own OIDC client.
+`x-zenith.sign_in` defines callback paths, optional app redirect URIs, and optional owner account linking. The app must configure its own OIDC client.
 
 | Field | Type | Required | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `redirect_paths` | list of strings | Yes, when `sign_in` is present | None | One to eight unique, exact callback paths starting with `/`. |
+| `native_redirect_uris` | list of strings | No | Unset | One to eight unique, exact redirect URIs for a mobile or desktop app. Setting it makes the deployment's client public. |
 | `owner_id_env` | string | No | Unset | Name of a plain `x-zenith.env` input used to seed the owner's local account ID on fresh deployments. |
 
 ## Callback paths
@@ -18,6 +19,14 @@ Callback paths are root-relative, such as `/auth/zenith/callback`. Zenith combin
 Paths cannot contain a different origin, a leading `//`, wildcards, backslashes, whitespace, queries, or fragments. Encoded wildcards, backslashes, control characters, and leading `//` also fail validation. An empty list or duplicate path fails validation.
 
 Zenith uses the current catalogue name and callback paths for automatic registration. Explicit client registration overrides those values for that deployment. Credentials alone do not enable authorization without configured callbacks.
+
+## App redirect URIs
+
+`native_redirect_uris` lists exact redirect URIs with a private-use scheme, such as `myapp://oidc/callback` or `com.example.app:/callback`. They apply to every deployment of the app, alongside the callback paths.
+
+The scheme must be lowercase and can't be `http`, `https`, `ws`, `wss`, `ftp`, `file`, `data`, `javascript`, `vbscript`, `about`, or `blob`. URIs can't contain user information, queries, fragments, wildcards, backslashes, or whitespace. A URI needs a host or a path after the scheme. An empty list, more than eight URIs, or a duplicate URI fails validation.
+
+When this field is set, the client is public. See [Access and consent](#access-and-consent) for how this changes consent.
 
 ## Owner account linking
 
@@ -47,8 +56,8 @@ OIDC built-ins resolve independently of `sign_in`. Authorization requires config
 | Built-in | Value |
 | --- | --- |
 | `ZENITH_OIDC_ISSUER` | Zenith OIDC issuer. |
-| `ZENITH_OIDC_CLIENT_ID` | Deployment-scoped confidential client ID. |
-| `ZENITH_OIDC_CLIENT_SECRET` | Deployment-scoped client secret. Stable across environment renders. A deployment reset creates a new secret. |
+| `ZENITH_OIDC_CLIENT_ID` | Deployment-scoped client ID. The client is confidential unless `native_redirect_uris` is set. |
+| `ZENITH_OIDC_CLIENT_SECRET` | Deployment-scoped client secret. Stable across environment renders. A deployment reset creates a new secret. A public client rejects it. |
 | `ZENITH_OIDC_OWNER_SUB` | Immutable Zenith customer ID of the deployment owner. |
 
 ## Protocol and claims
@@ -60,7 +69,7 @@ Discovery is available at the issuer followed by `/.well-known/openid-configurat
 | Grant type | `authorization_code`. |
 | Response type | `code`. |
 | PKCE challenge method | `S256`, required. |
-| Token endpoint authentication | `client_secret_basic` or `client_secret_post`. |
+| Token endpoint authentication | `client_secret_basic` or `client_secret_post` for confidential clients. `none` for public clients. |
 | ID token signature | `RS256`. |
 | Authorization code lifetime | Five minutes, single use. |
 | Access token lifetime | 15 minutes. |
@@ -77,6 +86,6 @@ The provider does not issue app roles, groups, or permissions. These credentials
 
 ## Access and consent
 
-The owner has access by default. Additional members must be existing verified Zenith accounts explicitly added by the owner. Users consent before Zenith shares their identity. `prompt=none` succeeds only with an allowed signed-in account and matching remembered consent.
+The owner has access by default. Additional members must be existing verified Zenith accounts explicitly added by the owner. Users consent before Zenith shares their identity. For a confidential client, `prompt=none` succeeds only with an allowed signed-in account and matching remembered consent. A public client never uses remembered consent. Every sign-in shows the consent page, and `prompt=none` returns `consent_required`.
 
 Removing a member revokes their Zenith grants and remembered consent. Adding them again requires fresh consent. Removing a member does not end local app sessions or revoke app passwords and tokens.

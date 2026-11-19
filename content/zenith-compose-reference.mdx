@@ -515,6 +515,7 @@ The [OIDC reference](/content/sign-in-with-zenith-reference#oidc-credentials) li
 | Field | Type | Required | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `redirect_paths` | list of strings | Yes, when `sign_in` is present | None | One to eight unique, exact callback paths starting with `/`. |
+| `native_redirect_uris` | list of strings | No | Unset | One to eight exact redirect URIs for a mobile or desktop app. Setting it makes the deployment's client public. |
 | `owner_id_env` | string | No | Unset | Name of a plain `x-zenith.env` input used to seed the owner's local account ID on fresh deployments. |
 
 For setup, callback restrictions, credential built-ins, owner linking, and protocol behavior, see [Sign in with Zenith](/content/sign-in-with-zenith).
