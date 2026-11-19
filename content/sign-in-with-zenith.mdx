@@ -4,9 +4,20 @@ sidebarTitle: "Sign in with Zenith"
 description: "Configure your app's OpenID Connect client to authenticate users with Zenith."
 ---
 
-Connect your app's OpenID Connect client to Zenith. Your app must support the authorization code flow with S256 PKCE and server-side client authentication.
+Connect your app's OpenID Connect client to Zenith. Your app must support the authorization code flow with S256 PKCE.
+
+## Choose a client type
+
+Each deployment has one OIDC client. Its type depends on where your app exchanges the authorization code for tokens.
+
+- If your server exchanges the code, keep the default confidential client. This covers mobile apps that open your server's login page and receive a session from your server.
+- If your mobile or desktop app exchanges the code itself, use a public client. Apps built on AppAuth or a similar library usually work this way. They receive the issuer and client ID from your server and register a custom URL scheme as the redirect.
+
+A deployment can't have both types. A public client applies to your web server too, so your server must sign in without a client secret. See [client types](/content/sign-in-with-zenith-reference#client-types) for a full comparison.
 
 ## Register callbacks and map credentials
+
+This section sets up a confidential client. For a public client, also follow [Sign in from a mobile or desktop app](#sign-in-from-a-mobile-or-desktop-app).
 
 Add these blocks to your existing `x-zenith` configuration. Replace `/auth/zenith/callback`, the `APP_*` names, and the `app` service with your app's values:
 
@@ -37,11 +48,42 @@ Use your app's OIDC library to configure the authorization flow:
 1. Load discovery from the supplied issuer followed by `/.well-known/openid-configuration`.
 2. Request the `openid` scope. Add `email` and `profile` if your app needs those claims.
 3. Generate `state`, `nonce`, and a PKCE verifier for the browser session. Send an S256 code challenge with the authorization request.
-4. On the callback, verify `state`. Exchange the code server-side with the same redirect URI and PKCE verifier. Authenticate with `client_secret_basic` or `client_secret_post`.
+4. On the callback, verify `state`. Exchange the code with the same redirect URI and PKCE verifier. A confidential client authenticates with `client_secret_basic` or `client_secret_post`. A public client sends only `client_id`.
 5. Validate the ID token's signature, issuer, audience, expiry, and original nonce. Use the issuer's JWKS to verify the signature.
 6. Identify the local account by the validated `sub` claim. Create your app's own session.
 
 Use the exact registered redirect URI. See the [OIDC reference](/content/sign-in-with-zenith-reference#protocol-and-claims) for supported claims and token lifetimes.
+
+## Sign in from a mobile or desktop app
+
+Declare your app's exact redirect URIs in `native_redirect_uris`. Keep `redirect_paths` for your web callback. Don't alias `ZENITH_OIDC_CLIENT_SECRET`:
+
+```yaml
+x-zenith:
+  sign_in:
+    redirect_paths: [/auth/zenith/callback]
+    native_redirect_uris: ['myapp://oidc/callback']
+  env:
+    APP_OIDC_ISSUER:
+      alias: ZENITH_OIDC_ISSUER
+      services: [app]
+    APP_OIDC_CLIENT_ID:
+      alias: ZENITH_OIDC_CLIENT_ID
+      services: [app]
+```
+
+Replace `myapp://oidc/callback` with the redirect URI your app registers. Declaring the field makes the deployment's client public. Then update your web server and your app:
+
+1. Remove the client secret from your web server's OIDC configuration. Zenith rejects any token request that sends a client secret.
+2. Send the S256 PKCE challenge with every authorization request and the verifier with every code exchange.
+3. Don't rely on `prompt=none` for silent sign-in. Zenith returns `consent_required` because a public client shows the consent page on every sign-in.
+4. When tokens expire, start a new authorization request. Zenith doesn't issue refresh tokens.
+
+<Warning>
+Another app on the device can register the same URL scheme and start its own sign-in. PKCE stops that app from redeeming your app's authorization code. Zenith shows the consent page on every sign-in, so the user sees each request. Don't treat a public client's sign-in as proof of which app made the request.
+</Warning>
+
+See the [app redirect URI reference](/content/sign-in-with-zenith-reference#app-redirect-uris) for the allowed formats.
 
 ## Link the owner's initial account
 
